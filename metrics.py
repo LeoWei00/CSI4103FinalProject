@@ -6,6 +6,9 @@ import numpy as np
 from sklearn.metrics import adjusted_rand_score, silhouette_score
 from sklearn.cluster import KMeans
 import time
+import psutil
+import os
+import tracemalloc
 
 
 def compute_eigenvalue_accuracy(eigenvalues_computed, eigenvalues_true, k=None):
@@ -190,6 +193,27 @@ def measure_runtime(func, *args, **kwargs):
     runtime = end_time - start_time
     return result, runtime
 
+def measure_peak_memory():
+    process = psutil.Process(os.getpid())
+    return process.memory_info().rss
+
+def compute_orthogonalization_loss(eigenvectors):
+    """
+    Measures deviation from perfect orthonormality.
+    
+    Returns Frobenius norm of (V^T V - I).
+    Lower = better orthogonality.
+    """
+    V = eigenvectors
+    k = V.shape[1]
+
+    G = V.T @ V  # Gram matrix
+    I = np.eye(k)
+
+    loss = np.linalg.norm(G - I, ord='fro')
+
+    return loss
+
 
 def compare_algorithms(
     laplacian, k, algorithms, reference_eigenvals=None, reference_eigenvecs=None
@@ -221,10 +245,19 @@ def compare_algorithms(
     for name, algorithm_func in algorithms.items():
         print(f"Running {name}...")
 
-        # Measure runtime
+        # Measure runtime & memory
+        start_mem = measure_peak_memory()
+        tracemalloc.start()
         start_time = time.perf_counter()
         eigenvals, eigenvecs, n_iter, history = algorithm_func(laplacian, k)
+        end_mem = measure_peak_memory()
+        current_python, peak_python = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
         runtime = time.perf_counter() - start_time
+        peak_mem = end_mem - start_mem
+
+        # measure orthogonality loss
+        ortho_loss = compute_orthogonalization_loss(eigenvecs)
 
         result = {
             "eigenvalues": eigenvals,
@@ -232,6 +265,9 @@ def compare_algorithms(
             "n_iterations": n_iter,
             "runtime": runtime,
             "convergence_history": history,
+            "peak_memory": peak_mem,
+            "peak_python_memory": peak_python,
+            "orthogonalization_loss": ortho_loss,
         }
 
         # Compute accuracy if reference available

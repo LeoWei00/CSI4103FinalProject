@@ -301,6 +301,11 @@ def create_report(results, image_shape=None, save_path=None):
             report_lines.append(
                 f"  Eigenvector mean correlation: {result['eigenvector_mean_correlation']:.4f}"
             )
+        
+        report_lines.append(f"  Peak OS Memory: {result['peak_memory']} bytes")
+        report_lines.append(f"  Peak Python Memory: {result['peak_python_memory']} bytes")
+
+        report_lines.append(f"  Orthogonalization loss: {result['orthogonalization_loss']}")
 
         # 🔹 Segmentation metrics (if available)
         seg_metrics = result.get("segmentation_metrics", None)

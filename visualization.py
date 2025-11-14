@@ -200,6 +200,67 @@ def plot_comparison_results(results, save_path=None):
     else:
         plt.show()
 
+import matplotlib.pyplot as plt
+import numpy as np
+
+def plot_metric_across_images_scatter(aggregates, metric_name, save_path=None):
+    """
+    Plot per-image values of a given metric for each algorithm (scatter only).
+
+    Parameters
+    ----------
+    aggregates : dict
+        Output from run_experiments_on_images:
+        aggregates[alg_name][metric_name] = { "values": [...], "mean": ..., "std": ... }
+    metric_name : str
+        Name of the metric to plot (e.g. "runtime", "n_iterations", "f1", "ari").
+    save_path : str, optional
+        If given, save the figure to this path instead of showing it.
+    """
+
+    alg_names = list(aggregates.keys())
+    if not alg_names:
+        print("No aggregates available.")
+        return
+
+    # Collect values for plot
+    values_per_alg = {}
+    for alg in alg_names:
+        metric_info = aggregates[alg].get(metric_name)
+        if metric_info is None:
+            continue
+        vals = metric_info.get("values", [])
+        if len(vals) > 0:
+            values_per_alg[alg] = vals
+
+    if not values_per_alg:
+        print(f"No values found for metric '{metric_name}'.")
+        return
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    # Plot each algorithm's values
+    for alg_idx, (alg, vals) in enumerate(values_per_alg.items()):
+        x = np.arange(len(vals))
+        jitter = np.random.normal(0, 0.05, size=len(vals))  # small horizontal jitter
+
+        ax.scatter(x + jitter, vals, label=alg, s=60, alpha=0.8)
+
+        ax.plot(x, vals, alpha=0.3)
+
+    ax.set_xlabel("Image Index")
+    ax.set_ylabel(metric_name)
+    ax.set_title(f"{metric_name} across images")
+    ax.legend()
+    ax.grid(True, axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+    else:
+        plt.show()
+
+
 def create_report(results, image_shape=None, save_path=None):
     """
     Create a text report of experiment results.
@@ -256,6 +317,77 @@ def create_report(results, image_shape=None, save_path=None):
 
     report_text = "\n".join(report_lines)
 
+    if save_path:
+        with open(save_path, "w") as f:
+            f.write(report_text)
+
+    print(report_text)
+    return report_text
+
+def create_aggregate_report(aggregates, num_images=None, save_path=None):
+    """
+    Create a text report summarizing aggregated metrics across multiple images.
+
+    Parameters
+    ----------
+    aggregates : dict
+        Output from run_experiments_on_images:
+        aggregates[alg_name][metric_name] = {
+            "values": [...],
+            "mean": float,
+            "std": float,
+        }
+    num_images : int, optional
+        Number of images processed (for context)
+    save_path : str, optional
+        If given, save the report to this file.
+
+    Returns
+    -------
+    report_text : str
+        The full text of the generated report.
+    """
+
+    report_lines = []
+    report_lines.append("=" * 80)
+    report_lines.append("AGGREGATE ALGORITHM COMPARISON REPORT")
+    report_lines.append("=" * 80)
+    report_lines.append("")
+
+    if num_images is not None:
+        report_lines.append(f"Number of images processed: {num_images}")
+        report_lines.append("")
+
+    for alg_name, metrics in aggregates.items():
+        report_lines.append(f"{alg_name}")
+        report_lines.append("-" * 80)
+
+        if not metrics:
+            report_lines.append("  No aggregated metrics available.\n")
+            continue
+
+        for metric_name, m_info in metrics.items():
+            mean_val = m_info.get("mean", None)
+            std_val = m_info.get("std", None)
+            values = m_info.get("values", [])
+
+            report_lines.append(f"  Metric: {metric_name}")
+            if mean_val is not None:
+                report_lines.append(f"    mean : {mean_val:.6f}")
+            if std_val is not None:
+                report_lines.append(f"    std  : {std_val:.6f}")
+
+            # Print all values (optional but helpful)
+            if values:
+                report_lines.append(f"    values: {values}")
+
+            report_lines.append("")
+
+        report_lines.append("")
+
+    report_text = "\n".join(report_lines)
+
+    # Save report if requested
     if save_path:
         with open(save_path, "w") as f:
             f.write(report_text)

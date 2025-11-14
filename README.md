@@ -15,7 +15,8 @@ This project compares **Subspace Iteration** and **QR Algorithm** (along with La
 1. **Standard Subspace Iteration** - Power method for multiple vectors
 2. **Block Subspace Iteration** - More efficient variant for multiple eigenvectors
 3. **QR Iteration** - Custom implementation with Wilkinson shift
-4. **Lanczos Method** - Efficient for sparse matrices
+4. **Lanczos Method** - Efficient for sparse matrices but does not use QR
+5. **Lanczos + Implict QR** - Implments QR
 
 ## Project Structure
 
@@ -47,6 +48,9 @@ project/
 # Run experiment with image file
 python subspace_iteration.py image.jpg --k 3 --k-neighbors 10
 
+# Run experiment wiht multiple image files (image.txt contains the image files on new lines)
+python main.py images.txt --k 3 --save --output-dir results_batch
+
 # Run experiment with matrix input
 python subspace_iteration.py matrix --matrix-file laplacian.npy --k 5
 
@@ -67,6 +71,19 @@ results = run_experiment(
     max_iter=1000,
     tol=1e-10,
     visualize=True
+)
+
+run_experiments_on_images(
+    image_inputs,          # List of images
+    k_clusters=3,
+    k_neighbors=10,
+    sigma=None,
+    normalized_laplacian=True,
+    max_iter=1000,
+    tol=1e-10,
+    visualize=False,        # now controls aggregate plots
+    save_results=False,     # save aggregate plots to disk
+    base_output_dir="results_batch",
 )
 
 # Matrix input
@@ -95,7 +112,7 @@ python example_usage.py
 ## Performance Notes
 
 - **QR Iteration** is computationally expensive (O(n³) per iteration) and may be slow for large images
-- **Subspace Iteration** and **Lanczos** are more efficient for large sparse matrices
+- **Subspace Iteration**, **Lanczos** and **Lanczos + Implict QR** are more efficient for large sparse matrices
 - Recommended image sizes: 40×40 to 100×100 pixels for reasonable runtime
 - For larger images, consider using sparse matrix operations or reducing k-neighbors
 

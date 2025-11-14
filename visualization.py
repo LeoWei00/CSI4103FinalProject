@@ -114,37 +114,84 @@ def plot_comparison_results(results, save_path=None):
     """
     algorithms = list(results.keys())
 
-    # Extract metrics
+    # Extract base metrics
     runtimes = [results[alg]["runtime"] for alg in algorithms]
     n_iters = [results[alg]["n_iterations"] for alg in algorithms]
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    # Determine which plots we need
+    has_eig_err = "eigenvalue_relative_error" in results[algorithms[0]]
+
+    # --- Find segmentation metrics (if any) ---
+    seg_metric_keys = []
+    first_seg = results[algorithms[0]].get("segmentation_metrics", None)
+    if isinstance(first_seg, dict):
+        # candidate keys are those that are scalar and present for all algorithms
+        for key, val in first_seg.items():
+            if not isinstance(val, (int, float)):
+                continue
+            if all(
+                isinstance(
+                    results[alg].get("segmentation_metrics", {}).get(key, None),
+                    (int, float),
+                )
+                for alg in algorithms
+            ):
+                seg_metric_keys.append(key)
+
+    # We will make:
+    #  - runtime
+    #  - iterations
+    #  - eigenvalue relative error (optional)
+    #  - one subplot per segmentation metric key (optional)
+    n_panels = 2 + (1 if has_eig_err else 0) + len(seg_metric_keys)
+    fig, axes = plt.subplots(1, n_panels, figsize=(5 * n_panels, 5))
+
+    # If only one axis, wrap in list for uniform indexing
+    if n_panels == 1:
+        axes = [axes]
+
+    ax_idx = 0
 
     # Runtime comparison
-    axes[0].bar(algorithms, runtimes)
-    axes[0].set_ylabel("Runtime (seconds)")
-    axes[0].set_title("Runtime Comparison")
-    axes[0].tick_params(axis="x", rotation=45)
-    axes[0].grid(True, alpha=0.3, axis="y")
+    axes[ax_idx].bar(algorithms, runtimes)
+    axes[ax_idx].set_ylabel("Runtime (seconds)")
+    axes[ax_idx].set_title("Runtime Comparison")
+    axes[ax_idx].tick_params(axis="x", rotation=45)
+    axes[ax_idx].grid(True, alpha=0.3, axis="y")
+    ax_idx += 1
 
     # Iterations comparison
-    axes[1].bar(algorithms, n_iters)
-    axes[1].set_ylabel("Number of Iterations")
-    axes[1].set_title("Convergence Speed")
-    axes[1].tick_params(axis="x", rotation=45)
-    axes[1].grid(True, alpha=0.3, axis="y")
+    axes[ax_idx].bar(algorithms, n_iters)
+    axes[ax_idx].set_ylabel("Number of Iterations")
+    axes[ax_idx].set_title("Convergence Speed")
+    axes[ax_idx].tick_params(axis="x", rotation=45)
+    axes[ax_idx].grid(True, alpha=0.3, axis="y")
+    ax_idx += 1
 
-    # Accuracy comparison (if available)
-    if "eigenvalue_relative_error" in results[algorithms[0]]:
-        rel_errors = [results[alg]["eigenvalue_relative_error"] for alg in algorithms]
-        axes[2].bar(algorithms, rel_errors)
-        axes[2].set_ylabel("Relative Error")
-        axes[2].set_title("Eigenvalue Accuracy")
-        axes[2].tick_params(axis="x", rotation=45)
-        axes[2].grid(True, alpha=0.3, axis="y")
-        axes[2].set_yscale("log")
-    else:
-        axes[2].axis("off")
+    # Eigenvalue accuracy comparison (if available)
+    if has_eig_err:
+        rel_errors = [
+            results[alg]["eigenvalue_relative_error"] for alg in algorithms
+        ]
+        axes[ax_idx].bar(algorithms, rel_errors)
+        axes[ax_idx].set_ylabel("Relative Error")
+        axes[ax_idx].set_title("Eigenvalue Accuracy")
+        axes[ax_idx].tick_params(axis="x", rotation=45)
+        axes[ax_idx].grid(True, alpha=0.3, axis="y")
+        axes[ax_idx].set_yscale("log")
+        ax_idx += 1
+
+    # Segmentation metrics comparison (if available)
+    for key in seg_metric_keys:
+        vals = [
+            results[alg]["segmentation_metrics"][key] for alg in algorithms
+        ]
+        axes[ax_idx].bar(algorithms, vals)
+        axes[ax_idx].set_ylabel(key)
+        axes[ax_idx].set_title(f"Segmentation Metric: {key}")
+        axes[ax_idx].tick_params(axis="x", rotation=45)
+        axes[ax_idx].grid(True, alpha=0.3, axis="y")
+        ax_idx += 1
 
     plt.tight_layout()
 
@@ -152,7 +199,6 @@ def plot_comparison_results(results, save_path=None):
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
     else:
         plt.show()
-
 
 def create_report(results, image_shape=None, save_path=None):
     """
@@ -194,6 +240,17 @@ def create_report(results, image_shape=None, save_path=None):
             report_lines.append(
                 f"  Eigenvector mean correlation: {result['eigenvector_mean_correlation']:.4f}"
             )
+
+        # 🔹 Segmentation metrics (if available)
+        seg_metrics = result.get("segmentation_metrics", None)
+        if isinstance(seg_metrics, dict) and seg_metrics:
+            report_lines.append("  Segmentation metrics:")
+            for m_name, m_val in seg_metrics.items():
+                # print scalar metrics nicely; skip weird types
+                if isinstance(m_val, (int, float)):
+                    report_lines.append(f"    {m_name}: {m_val:.4f}")
+                else:
+                    report_lines.append(f"    {m_name}: {m_val}")
 
         report_lines.append("")
 

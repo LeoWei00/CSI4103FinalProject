@@ -40,6 +40,11 @@ project/
 - `matplotlib` - Visualization
 - `PIL` (Pillow) - Image loading
 
+To install dependencies, use: 
+```bash
+py -m pip install -r requirements.txt
+```
+
 ## Usage
 
 ### Command Line

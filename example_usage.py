@@ -58,6 +58,7 @@ from graph_laplacian import image_to_laplacian
 from subspace_iteration_alg import standard_subspace_iteration, block_subspace_iteration
 from qr_iteration import qr_iteration_partial
 from lanczos import lanczos_iteration
+from lanczos_qrimplicit import lanczos_implicitqr
 
 # Create a small test matrix
 n = 30
@@ -94,5 +95,17 @@ eigenvals_lanc, eigenvecs_lanc, n_iter_lanc, history_lanc = lanczos_iteration(
 )
 print(f"  Converged in {n_iter_lanc} iterations")
 print(f"  Eigenvalues: {eigenvals_lanc}")
+
+print("\nRunning Implicitly Restarted Lanczos...")
+eigenvals_lanc_ir, eigenvecs_lanc_ir, n_iter_lanc_ir, history_lanc_ir = lanczos_implicitqr(
+    test_matrix,
+    k=k,
+    m=None,
+    max_outer=50,
+    tol=1e-8,
+    verbose=False,
+)
+print(f"  Converged in {n_iter_lanc_ir} outer iterations")
+print(f"  Eigenvalues: {eigenvals_lanc_ir}")
 
 print("\nDone!")

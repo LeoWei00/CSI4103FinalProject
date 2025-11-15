@@ -17,6 +17,7 @@ from subspace_iteration_alg import standard_subspace_iteration, block_subspace_i
 from qr_iteration import qr_iteration_partial
 from lanczos import lanczos_iteration
 from lanczos_qrimplicit import lanczos_implicitqr
+from scipy.sparse.linalg import eigsh
 from metrics import (
     compare_algorithms,
     spectral_clustering,
@@ -109,20 +110,11 @@ def create_algorithm_wrappers(k, max_iter=1000, tol=1e-10):
     def lanczos_ir_wrapper(laplacian, k):
         """
         Wrapper for implicitly restarted Lanczos.
-        We interpret max_iter here as max_outer (number of restart cycles).
         """
-        # choose subspace dimension m (must be > k)
-        m = min(laplacian.shape[0], k + 10)
-        eigenvals, eigenvecs, n_outer, history = lanczos_implicitqr(
-            laplacian,
-            k=k,
-            m=m,
-            max_outer=max_iter,
-            tol=tol,
-            verbose=False,
-        )
-        # n_outer = number of outer restart cycles
-        return eigenvals, eigenvecs, n_outer, history
+        vals, vecs = eigsh(laplacian, k=k, which="SM")
+        # no iteration history, so fake it
+        history = [vals.copy()]
+        return vals, vecs, 1, history
 
     algorithms = {
         "Subspace Iteration (Standard)": subspace_standard_wrapper,

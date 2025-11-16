@@ -1,59 +1,88 @@
 """
-Implicitly Restarted Lanczos method (IRL)
-----------------------------------------
+practical_qr.py
 
-Computes the k smallest eigenvalues/eigenvectors of a matrix A
-using the Implicitly Restarted Lanczos algorithm (Lanczos + implicit QR).
-
-This is a simplified ARPACK-style implementation.
-
-Returns:
-    eigenvalues, eigenvectors, n_iter, history
+Lanczos tridiagonalization + implicit QR on the small tridiagonal T.
 """
 
 import numpy as np
-from scipy.linalg import eigh
+from scipy.sparse import issparse
+from scipy.linalg import qr
 
+# ---------------------------------------------------------
+# 1. Lanczos tridiagonalization (no restarting)
+# ---------------------------------------------------------
 
-def lanczos_step(A, v0, m, tol=1e-14):
+def lanczos_tridiagonal(A, m, v0=None, tol=1e-14):
     """
-    Perform m steps of Lanczos starting from initial vector v0.
-    Returns the basis V (n×m), and the tridiagonal matrix data (alpha, beta).
+    Run m steps of (plain) Lanczos on symmetric A.
+
+    Parameters
+    ----------
+    A : (n, n) ndarray or sparse matrix
+        Symmetric matrix (e.g. Laplacian).
+    m : int
+        Dimension of Lanczos subspace (number of steps).
+    v0 : ndarray, optional
+        Initial vector (length n). If None, random.
+    tol : float
+        Breakdown tolerance.
+
+    Returns
+    -------
+    V : ndarray, shape (n, m)
+        Orthonormal Lanczos basis vectors.
+    alpha : ndarray, shape (m,)
+        Diagonal entries of the tridiagonal matrix T.
+    beta : ndarray, shape (m-1,)
+        Off-diagonal entries of T.
     """
-    n = A.shape[0]
+    if issparse(A):
+        matvec = lambda x: A @ x
+        n = A.shape[0]
+    else:
+        A = np.asarray(A)
+        matvec = lambda x: A @ x
+        n = A.shape[0]
+
+    if v0 is None:
+        v = np.random.randn(n)
+    else:
+        v = np.array(v0, dtype=float)
+
+    v /= np.linalg.norm(v)
+
     V = np.zeros((n, m))
     alpha = np.zeros(m)
     beta = np.zeros(m - 1)
 
-    v = v0 / np.linalg.norm(v0)
     V[:, 0] = v
-    w = A @ v
+    w = matvec(v)
     alpha[0] = v @ w
-    w -= alpha[0] * v
+    w = w - alpha[0] * v
 
     for j in range(1, m):
         beta[j - 1] = np.linalg.norm(w)
         if beta[j - 1] < tol:
-            # breakdown → restart
+            # simple breakdown handling: restart with random vector
             v = np.random.randn(n)
             v /= np.linalg.norm(v)
             V[:, j] = v
-            w = A @ v
+            w = matvec(v)
             alpha[j] = v @ w
             w = w - alpha[j] * v
             continue
 
         v = w / beta[j - 1]
         V[:, j] = v
-        w = A @ v
+        w = matvec(v)
         alpha[j] = v @ w
-        w -= alpha[j] * v + beta[j - 1] * V[:, j-1]
+        w = w - alpha[j] * v - beta[j - 1] * V[:, j - 1]
 
     return V, alpha, beta
 
 
 def build_tridiagonal(alpha, beta):
-    """Return the symmetric tridiagonal matrix from alpha/beta."""
+    """Construct the symmetric tridiagonal matrix T from alpha, beta."""
     m = len(alpha)
     T = np.zeros((m, m))
     for i in range(m):
@@ -64,118 +93,145 @@ def build_tridiagonal(alpha, beta):
     return T
 
 
-def implicit_qr_shift(T, shifts):
+# ---------------------------------------------------------
+# 2. Implicit QR iteration on small symmetric tridiagonal T
+# ---------------------------------------------------------
+
+def qr_iteration_tridiagonal(T, max_iter=1000, tol=1e-12):
     """
-    Apply implicit QR steps to T with given shifts (Ritz values).
-    Returns the transformed tridiagonal matrix.
-    """
-    T_mod = T.copy()
-    m = T_mod.shape[0]
+    Implicitly shifted QR on a small symmetric matrix T.
 
-    for mu in shifts:
-        # perform a single implicit QR step with shift mu
-        Q, R = np.linalg.qr(T_mod - mu * np.eye(m))
-        T_mod = R @ Q + mu * np.eye(m)
-
-        # force symmetry (QR drifts slightly)
-        T_mod = 0.5 * (T_mod + T_mod.T)
-
-    return T_mod
-
-
-def lanczos_implicitqr(
-    A, k, m=None, max_outer=50, tol=1e-8, verbose=False
-):
-    """
-    Implicitly Restarted Lanczos algorithm.
+    This is a *practical* implementation, not super optimized,
+    but fine for the small m (~k+10) coming from Lanczos.
 
     Parameters
     ----------
-    A : (n,n) ndarray or sparse matrix
-    k : int
-        number of eigenvalues to compute
-    m : int
-        Lanczos subspace dimension (m > k), default = k + 10
-    max_outer : int
-        number of outer restart cycles
+    T : (m, m) ndarray
+        Symmetric (tridiagonal) matrix.
+    max_iter : int
+        Maximum QR iterations.
     tol : float
-        tolerance on Ritz residuals
+        Convergence tolerance on off-diagonal norm.
 
     Returns
     -------
-    eigenvalues, eigenvectors, n_iter, history
+    evals : ndarray, shape (m,)
+        Approximate eigenvalues (diagonal of reduced matrix).
+    evecs : ndarray, shape (m, m)
+        Approximate eigenvectors (columns).
+    history : list of ndarray
+        History of smallest few eigenvalues per iteration (for plotting).
     """
+    A_k = T.copy()
+    m = A_k.shape[0]
+    Q_total = np.eye(m)
+    history = []
 
-    n = A.shape[0]
+    for it in range(max_iter):
+        # simple Wilkinson-style shift: use bottom-right element
+        mu = A_k[-1, -1]
+
+        Q, R = np.linalg.qr(A_k - mu * np.eye(m))
+        A_k = R @ Q + mu * np.eye(m)
+
+        Q_total = Q_total @ Q
+
+        # track (say) first 5 eigenvalues estimate, just for convergence plots
+        diag_vals = np.diag(A_k)
+        history.append(np.sort(diag_vals.copy()))
+
+        # check off-diagonal norm for convergence
+        off_norm = np.sqrt(np.sum(A_k**2) - np.sum(diag_vals**2))
+        if off_norm < tol:
+            break
+
+    evals = np.diag(A_k)
+    evecs = Q_total
+
+    return evals, evecs, it + 1, history
+
+
+# ---------------------------------------------------------
+# 3. Practical QR path: Lanczos → T → implicit QR(T) → Ritz pairs
+# ---------------------------------------------------------
+
+def lanczos_practical_qr(
+    A,
+    k,
+    m=None,
+    max_lanczos=None,   # kept for symmetry with other solvers; not really used
+    max_qr_iter=1000,
+    tol=1e-10,
+):
+    """
+    Practical QR path for symmetric A:
+
+        Lanczos tridiagonalization  →  T
+        implicit QR on T            →  eigenpairs of T
+        Ritz pairs                  →  approximate eigenpairs of A
+
+    This is your "QR Algorithm (practical interpretation)" solver.
+
+    Parameters
+    ----------
+    A : (n, n) ndarray or sparse matrix
+        Symmetric matrix (e.g., Laplacian).
+    k : int
+        Number of smallest eigenpairs to return.
+    m : int, optional
+        Lanczos subspace dimension (>= k). Default: k + 10 or n, whichever is smaller.
+    max_lanczos : int, optional
+        Included for API symmetry; currently unused (single Lanczos pass of size m).
+    max_qr_iter : int
+        Maximum QR iterations on T.
+    tol : float
+        Tolerance used inside QR iteration (off-diagonal norm).
+
+    Returns
+    -------
+    eigenvalues : ndarray, shape (k,)
+        Smallest k Rayleigh–Ritz eigenvalues approximating those of A.
+    eigenvectors : ndarray, shape (n, k)
+        Corresponding Ritz vectors in the original space.
+    n_iter : int
+        Number of QR iterations performed on T.
+    convergence_history : list
+        History of eigenvalue estimates from the QR iteration (on T).
+    """
+    if issparse(A):
+        n = A.shape[0]
+    else:
+        A = np.asarray(A)
+        n = A.shape[0]
+
+    # Lanczos subspace size
     if m is None:
         m = min(n, k + 10)
 
-    # initial vector
-    v0 = np.random.randn(n)
-    v0 /= np.linalg.norm(v0)
+    # 1) Lanczos tridiagonalization: A ≈ V T V^T
+    V, alpha, beta = lanczos_tridiagonal(A, m)
+    T = build_tridiagonal(alpha, beta)
 
-    history = []
+    # 2) Implicit QR on the small T
+    evals_T, evecs_T, n_qr_iter, qr_history = qr_iteration_tridiagonal(
+        T, max_iter=max_qr_iter, tol=tol
+    )
 
-    for outer in range(max_outer):
+    # Sort eigenpairs of T (we want smallest eigenvalues of A, which
+    # correspond to smallest eigenvalues of T for a good Lanczos run).
+    idx = np.argsort(evals_T)
+    evals_T = evals_T[idx]
+    evecs_T = evecs_T[:, idx]
 
-        # -------------------------------
-        # 1) Lanczos build of size m
-        # -------------------------------
-        V, alpha, beta = lanczos_step(A, v0, m)
-        T = build_tridiagonal(alpha, beta)
+    # 3) Ritz vectors in original space: V * y_j
+    ritz_vecs = V @ evecs_T    # shape (n, m)
 
-        # -------------------------------
-        # 2) Compute Ritz pairs of T
-        # -------------------------------
-        evals_T, evecs_T = eigh(T)
-        idx = np.argsort(evals_T)
-        evals_T = evals_T[idx]
-        evecs_T = evecs_T[:, idx]
+    # take the first k (smallest eigenvalues)
+    eigenvalues = evals_T[:k]
+    eigenvectors = ritz_vecs[:, :k]
 
-        # Ritz vectors in original space
-        ritz_vecs = V @ evecs_T
+    # optionally orthonormalize Ritz vectors (helps numerically)
+    eigenvectors, _ = qr(eigenvectors, mode="economic")
 
-        # -------------------------------
-        # 3) Convergence check
-        # -------------------------------
-        # compute residual norm || A v - lambda v ||
-        ritz_resids = []
-        for i in range(k):
-            lam = evals_T[i]
-            z = ritz_vecs[:, i]
-            r = A @ z - lam * z
-            ritz_resids.append(np.linalg.norm(r))
+    return eigenvalues, eigenvectors, n_qr_iter, qr_history
 
-        history.append(ritz_resids.copy())
-
-        if verbose:
-            print(f"[IRL] outer={outer}, residual={max(ritz_resids):.3e}")
-
-        if max(ritz_resids) < tol:
-            # converged
-            return (
-                evals_T[:k],
-                ritz_vecs[:, :k],
-                outer + 1,
-                history,
-            )
-
-        # -------------------------------
-        # 4) Choose shifts = unwanted Ritz values
-        # -------------------------------
-        shifts = evals_T[k:m]   # heuristic: use the "bad" eigenvalues
-
-        # -------------------------------
-        # 5) Apply implicit QR shifts to T
-        # -------------------------------
-        T_new = implicit_qr_shift(T, shifts)
-
-        # update the starting vector (last column of the new Q)
-        # because the last Lanczos vector is the new restart vector
-        _, evecs_new = eigh(T_new)
-        q_last = evecs_new[:, -1]
-        v0 = V @ q_last
-        v0 /= np.linalg.norm(v0)
-
-    # No convergence
-    return evals_T[:k], ritz_vecs[:, :k], max_outer, history

@@ -16,7 +16,7 @@ from graph_laplacian import image_to_laplacian, image_to_feature_vectors
 from subspace_iteration_alg import standard_subspace_iteration, block_subspace_iteration
 from qr_iteration import qr_iteration_partial
 from lanczos import lanczos_iteration
-from lanczos_qrimplicit import lanczos_implicitqr
+from lanczos_qrimplicit import lanczos_practical_qr
 from scipy.sparse.linalg import eigsh
 from metrics import (
     compare_algorithms,
@@ -115,13 +115,19 @@ def create_algorithm_wrappers(k, max_iter=1000, tol=1e-10):
         # no iteration history, so fake it
         history = [vals.copy()]
         return vals, vecs, 1, history
+    
+    def lanczos_practical_qr_wrapper(laplacian, k):
+        eigenvals, eigenvecs, n_iter, history = lanczos_practical_qr(
+            laplacian, k, m=k+20, max_qr_iter=1000, tol=1e-10
+        )
+        return eigenvals, eigenvecs, n_iter, history
 
     algorithms = {
         "Subspace Iteration (Standard)": subspace_standard_wrapper,
         "Subspace Iteration (Block)": subspace_block_wrapper,
         "QR Iteration": qr_wrapper,
         "Lanczos": lanczos_wrapper,
-        "Lanczos (Implicit QR)": lanczos_ir_wrapper
+        "Lanczos (Implicit QR)": lanczos_practical_qr_wrapper
     }
 
     return algorithms

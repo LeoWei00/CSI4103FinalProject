@@ -244,6 +244,7 @@ def compare_algorithms(
 
     for name, algorithm_func in algorithms.items():
         print(f"Running {name}...")
+        max_iter_budget = getattr(algorithm_func, "max_iter_budget", None)
 
         # Measure runtime & memory
         start_mem = measure_peak_memory()
@@ -254,7 +255,7 @@ def compare_algorithms(
         current_python, peak_python = tracemalloc.get_traced_memory()
         tracemalloc.stop()
         runtime = time.perf_counter() - start_time
-        peak_mem = end_mem - start_mem
+        peak_mem = max(start_mem, end_mem)
 
         # measure orthogonality loss
         ortho_loss = compute_orthogonalization_loss(eigenvecs)
@@ -269,6 +270,9 @@ def compare_algorithms(
             "peak_python_memory": peak_python,
             "orthogonalization_loss": ortho_loss,
         }
+        if max_iter_budget is not None:
+            result["max_iter_budget"] = max_iter_budget
+            result["converged"] = n_iter < max_iter_budget
 
         # Compute accuracy if reference available
         if reference_eigenvals is not None:

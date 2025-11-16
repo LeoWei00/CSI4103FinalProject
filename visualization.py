@@ -6,6 +6,74 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
+def set_window_title(fig, title):
+    manager = getattr(getattr(fig, "canvas", None), "manager", None)
+    if manager is not None:
+        try:
+            manager.set_window_title(title)
+        except Exception:
+            pass
+
+np.random.seed(0)
+
+def show_image_and_segmentation(image, labels, title="Segmentation"):
+    """Display the original image with its clustering result."""
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    set_window_title(fig, title)
+    if image.ndim == 2:
+        axes[0].imshow(image, cmap="gray")
+    else:
+        axes[0].imshow(image)
+    axes[0].set_title("Original Image")
+    axes[0].axis("off")
+
+    h, w = image.shape[:2]
+    axes[1].imshow(labels.reshape(h, w), cmap="tab20")
+    axes[1].set_title(title)
+    axes[1].axis("off")
+    plt.show(block=False)
+    plt.pause(0.001)
+
+
+def plot_memory_usage(results):
+    """Compare peak OS/Python memory usage across algorithms."""
+    alg_names = list(results.keys())
+    os_mem = [results[a].get("peak_memory", 0) / (1024**2) for a in alg_names]
+    py_mem = [results[a].get("peak_python_memory", 0) / (1024**2) for a in alg_names]
+
+    x = np.arange(len(alg_names))
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    set_window_title(fig, "Memory Usage Comparison")
+    ax.bar(x - width / 2, os_mem, width, label="Peak OS Memory (MB)")
+    ax.bar(x + width / 2, py_mem, width, label="Peak Python Memory (MB)")
+    ax.set_xticks(x)
+    ax.set_xticklabels(alg_names, rotation=30, ha="right")
+    ax.set_ylabel("Memory (MB)")
+    ax.set_title("Memory Usage Comparison")
+    ax.legend()
+    ax.grid(True, axis="y", alpha=0.3)
+    plt.tight_layout()
+    plt.show(block=False)
+    plt.pause(0.001)
+
+
+def plot_runtime(results):
+    """Bar chart of runtimes for each algorithm."""
+    alg_names = list(results.keys())
+    runtimes = [results[a].get("runtime", 0) for a in alg_names]
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    set_window_title(fig, "Runtime Comparison")
+    ax.bar(alg_names, runtimes, color="tab:purple")
+    ax.set_ylabel("Runtime (s)")
+    ax.set_title("Runtime Comparison")
+    ax.set_xticklabels(alg_names, rotation=30, ha="right")
+    ax.grid(True, axis="y", alpha=0.3)
+    plt.tight_layout()
+    plt.show(block=False)
+    plt.pause(0.001)
 
 def plot_convergence(convergence_histories, algorithm_names, k=None, save_path=None):
     """

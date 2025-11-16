@@ -3,7 +3,11 @@ Example usage of the subspace iteration comparison framework.
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
 from subspace_iteration import run_experiment, run_matrix_experiment
+from visualization import show_image_and_segmentation, plot_memory_usage, plot_runtime
+
+plt.ion()
 
 # Example 1: Run experiment with a numpy array (image)
 print("Example 1: Image from numpy array")
@@ -28,6 +32,14 @@ results = run_experiment(
     visualize=False,  # Set to True to see plots
     save_results=False,
 )
+
+for alg_name, result in results.items():
+    labels = result.get("labels")
+    if labels is not None:
+        show_image_and_segmentation(image, labels, f"{alg_name} Segmentation")
+
+plot_memory_usage(results)
+plot_runtime(results)
 
 print("\n" + "=" * 80)
 print("Example 2: Matrix input")
@@ -58,7 +70,7 @@ from graph_laplacian import image_to_laplacian
 from subspace_iteration_alg import standard_subspace_iteration, block_subspace_iteration
 from qr_iteration import qr_iteration_partial
 from lanczos import lanczos_iteration
-from lanczos_qrimplicit import lanczos_implicitqr
+from lanczos_qrimplicit import lanczos_practical_qr
 
 # Create a small test matrix
 n = 30
@@ -97,15 +109,17 @@ print(f"  Converged in {n_iter_lanc} iterations")
 print(f"  Eigenvalues: {eigenvals_lanc}")
 
 print("\nRunning Implicitly Restarted Lanczos...")
-eigenvals_lanc_ir, eigenvecs_lanc_ir, n_iter_lanc_ir, history_lanc_ir = lanczos_implicitqr(
+eigenvals_lanc_ir, eigenvecs_lanc_ir, n_iter_lanc_ir, history_lanc_ir = lanczos_practical_qr(
     test_matrix,
     k=k,
     m=None,
-    max_outer=50,
-    tol=1e-8,
-    verbose=False,
+    max_qr_iter=50,
+    tol=1e-6,
 )
 print(f"  Converged in {n_iter_lanc_ir} outer iterations")
 print(f"  Eigenvalues: {eigenvals_lanc_ir}")
 
 print("\nDone!")
+
+plt.ioff()
+plt.show()

@@ -250,7 +250,7 @@ def compare_algorithms(
         start_mem = measure_peak_memory()
         tracemalloc.start()
         start_time = time.perf_counter()
-        eigenvals, eigenvecs, n_iter, history = algorithm_func(laplacian, k)
+        eigenvals, eigenvecs, n_iter, history = algorithm_func(laplacian)
         end_mem = measure_peak_memory()
         current_python, peak_python = tracemalloc.get_traced_memory()
         tracemalloc.stop()

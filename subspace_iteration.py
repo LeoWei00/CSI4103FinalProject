@@ -79,46 +79,51 @@ def create_algorithm_wrappers(k, max_iter=1000, tol=1e-10):
     algorithms : dict
         Dictionary of algorithm functions
     """
-
-    def subspace_standard_wrapper(laplacian, k):
+    # print(k)
+    def subspace_standard_wrapper(laplacian):
+        # print(k)
+        inner_k = k
         eigenvals, eigenvecs, n_iter, history = standard_subspace_iteration(
-            laplacian, k, max_iter=max_iter, tol=tol
+            laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
         )
         return eigenvals, eigenvecs, n_iter, history
 
-    def subspace_block_wrapper(laplacian, k):
+    def subspace_block_wrapper(laplacian):
+        inner_k = k
         eigenvals, eigenvecs, n_iter, history = block_subspace_iteration(
-            laplacian, k, max_iter=max_iter, tol=tol
+            laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
         )
         return eigenvals, eigenvecs, n_iter, history
 
-    def qr_wrapper(laplacian, k):
+    def qr_wrapper(laplacian):
+        inner_k = k
         # QR iteration doesn't return history, so we create a simple one
         eigenvals, eigenvecs, n_iter = qr_iteration_partial(
-            laplacian, k, max_iter=max_iter, tol=tol
+            laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
         )
         # Create dummy history (QR doesn't track intermediate values)
         history = [eigenvals] * n_iter
         return eigenvals, eigenvecs, n_iter, history
 
-    def lanczos_wrapper(laplacian, k):
-        eigenvals, eigenvecs, n_iter, history = lanczos_iteration(
-            laplacian, k, max_iter=max_iter, tol=tol
-        )
-        return eigenvals, eigenvecs, n_iter, history
+    # def lanczos_wrapper(laplacian, k=k):
+    #     eigenvals, eigenvecs, n_iter, history = lanczos_iteration(
+    #         laplacian, k, max_iter=max_iter, tol=tol
+    #     )
+    #     return eigenvals, eigenvecs, n_iter, history
     
-    def lanczos_ir_wrapper(laplacian, k):
-        """
-        Wrapper for implicitly restarted Lanczos.
-        """
-        vals, vecs = eigsh(laplacian, k=k, which="SM")
-        # no iteration history, so fake it
-        history = [vals.copy()]
-        return vals, vecs, 1, history
+    # def lanczos_ir_wrapper(laplacian, k):
+    #     """
+    #     Wrapper for implicitly restarted Lanczos.
+    #     """
+    #     vals, vecs = eigsh(laplacian, k=k, which="SM")
+    #     # no iteration history, so fake it
+    #     history = [vals.copy()]
+    #     return vals, vecs, 1, history
     
-    def lanczos_practical_qr_wrapper(laplacian, k):
+    def lanczos_practical_qr_wrapper(laplacian):
+        inner_k = k
         eigenvals, eigenvecs, n_iter, history = lanczos_practical_qr(
-            laplacian, k, m=k+20, max_qr_iter=1000, tol=1e-10
+            laplacian, inner_k, m=k+20, max_qr_iter=1000, tol=1e-10, skip_trivial=True
         )
         return eigenvals, eigenvecs, n_iter, history
 
@@ -126,7 +131,7 @@ def create_algorithm_wrappers(k, max_iter=1000, tol=1e-10):
         "Subspace Iteration (Standard)": subspace_standard_wrapper,
         "Subspace Iteration (Block)": subspace_block_wrapper,
         "QR Iteration": qr_wrapper,
-        "Lanczos": lanczos_wrapper,
+        #"Lanczos": lanczos_wrapper,
         "Lanczos (Implicit QR)": lanczos_practical_qr_wrapper
     }
 
@@ -213,14 +218,22 @@ def run_experiment(
     print("Computing reference solution (scipy.linalg.eigh)...")
     from scipy.linalg import eigh
 
+    # Compute 1 extra so we can skip λ₀
     eigenvals_ref, eigenvecs_ref = eigh(laplacian_dense)
+
+    # Sort
     idx = np.argsort(eigenvals_ref)
-    eigenvals_ref = eigenvals_ref[idx][:k_clusters]
-    eigenvecs_ref = eigenvecs_ref[:, idx][:, :k_clusters]
+    eigenvals_ref = eigenvals_ref[idx]
+    eigenvecs_ref = eigenvecs_ref[:, idx]
+
+    # Skip the trivial eigenvalue (0)
+    eigenvals_ref = eigenvals_ref[1 : k_clusters + 1]
+    eigenvecs_ref = eigenvecs_ref[:, 1 : k_clusters + 1]
+    print ("Reference eigenvalues:", eigenvals_ref)
     print()
 
     # Create algorithm wrappers
-    algorithms = create_algorithm_wrappers(k_clusters, max_iter=max_iter, tol=tol)
+    algorithms = create_algorithm_wrappers(k_clusters+1, max_iter=max_iter, tol=tol)
 
     # Run comparison
     print("Running algorithm comparison...")
@@ -480,13 +493,19 @@ def run_matrix_experiment(
     from scipy.linalg import eigh
 
     eigenvals_ref, eigenvecs_ref = eigh(matrix)
+
+    # Sort
     idx = np.argsort(eigenvals_ref)
-    eigenvals_ref = eigenvals_ref[idx][:k]
-    eigenvecs_ref = eigenvecs_ref[:, idx][:, :k]
+    eigenvals_ref = eigenvals_ref[idx]
+    eigenvecs_ref = eigenvecs_ref[:, idx]
+
+    # Skip the trivial eigenvalue (0)
+    eigenvals_ref = eigenvals_ref[1 : k + 1]
+    eigenvecs_ref = eigenvecs_ref[:, 1 : k + 1]
     print()
 
     # Create algorithm wrappers
-    algorithms = create_algorithm_wrappers(k, max_iter=max_iter, tol=tol)
+    algorithms = create_algorithm_wrappers(k+1, max_iter=max_iter, tol=tol)
 
     # Run comparison
     print("Running algorithm comparison...")

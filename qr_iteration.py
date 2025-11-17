@@ -97,39 +97,62 @@ def qr_iteration(A, max_iter=1000, tol=1e-10, shift=True):
     return eigenvalues, eigenvectors, iteration + 1
 
 
-def qr_iteration_partial(A, k, max_iter=1000, tol=1e-10):
+def qr_iteration_partial(A, k, max_iter=1000, tol=1e-10, skip_trivial=False):
     """
-    QR iteration to compute only the k smallest eigenvalues and eigenvectors.
-
-    This is less efficient than full QR, but included for comparison.
-    In practice, you would use deflation or other techniques.
+    QR iteration to compute the k smallest (or k smallest nontrivial) eigenvalues
+    and eigenvectors of a symmetric matrix A.
 
     Parameters
     ----------
     A : ndarray
         Square symmetric matrix
     k : int
-        Number of smallest eigenvalues to compute
+        Number of eigenvalues/eigenvectors to return
+        (nontrivial ones if skip_trivial=True).
     max_iter : int
-        Maximum number of iterations
+        Maximum number of QR iterations.
     tol : float
-        Convergence tolerance
+        Convergence tolerance.
+    skip_trivial : bool
+        If True, assume the very smallest eigenvalue is trivial (e.g. 0 for a
+        Laplacian) and return the next k eigenpairs.
 
     Returns
     -------
-    eigenvalues : ndarray
-        k smallest eigenvalues
-    eigenvectors : ndarray
-        Corresponding eigenvectors (columns)
+    eigenvalues : ndarray, shape (k,)
+        Smallest (or smallest nontrivial) eigenvalues.
+    eigenvectors : ndarray, shape (n, k)
+        Corresponding eigenvectors (columns).
     n_iter : int
-        Number of iterations performed
+        Number of iterations performed by qr_iteration.
     """
-    # Compute all eigenvalues/eigenvectors, then select k smallest
-    eigenvalues, eigenvectors, n_iter = qr_iteration(A, max_iter=max_iter, tol=tol)
+    # Full QR iteration on A
+    eigenvalues_all, eigenvectors_all, n_iter = qr_iteration(
+        A, max_iter=max_iter, tol=tol
+    )
 
-    # Sort and select k smallest
-    idx = np.argsort(eigenvalues)
-    eigenvalues = eigenvalues[idx][:k]
-    eigenvectors = eigenvectors[:, idx][:, :k]
+    # Sort by eigenvalue ascending
+    idx = np.argsort(eigenvalues_all)
+    eigenvalues_all = eigenvalues_all[idx]
+    eigenvectors_all = eigenvectors_all[:, idx]
+
+    n = len(eigenvalues_all)
+
+    if skip_trivial:
+        # make sure we have at least k+1 eigenvalues
+        if k + 1 > n:
+            raise ValueError(
+                f"Requested k={k} nontrivial eigenpairs but matrix size is only n={n}"
+            )
+        eigenvalues = eigenvalues_all[1 : k]
+        eigenvectors = eigenvectors_all[:, 1 : k]
+    else:
+        if k > n:
+            raise ValueError(
+                f"Requested k={k} eigenpairs but matrix size is only n={n}"
+            )
+        eigenvalues = eigenvalues_all[:k]
+        eigenvectors = eigenvectors_all[:, :k]
 
     return eigenvalues, eigenvectors, n_iter
+

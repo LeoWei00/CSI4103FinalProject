@@ -79,42 +79,44 @@ test_matrix = (test_matrix + test_matrix.T) / 2
 test_matrix = test_matrix @ test_matrix.T
 
 k = 3
+mi = 1000
 
 print("Running Standard Subspace Iteration...")
 eigenvals_si, eigenvecs_si, n_iter_si, history_si = standard_subspace_iteration(
-    test_matrix, k, max_iter=100, tol=1e-10
+    test_matrix, k+1, max_iter=mi, tol=1e-10, skip_trivial=True
 )
 print(f"  Converged in {n_iter_si} iterations")
 print(f"  Eigenvalues: {eigenvals_si}")
 
 print("\nRunning Block Subspace Iteration...")
 eigenvals_bsi, eigenvecs_bsi, n_iter_bsi, history_bsi = block_subspace_iteration(
-    test_matrix, k, max_iter=100, tol=1e-10
+    test_matrix, k+1, max_iter=mi, tol=1e-10, skip_trivial=True
 )
 print(f"  Converged in {n_iter_bsi} iterations")
 print(f"  Eigenvalues: {eigenvals_bsi}")
 
 print("\nRunning QR Iteration...")
 eigenvals_qr, eigenvecs_qr, n_iter_qr = qr_iteration_partial(
-    test_matrix, k, max_iter=100, tol=1e-10
+    test_matrix, k+1, max_iter=mi, tol=1e-10, skip_trivial=True
 )
 print(f"  Converged in {n_iter_qr} iterations")
 print(f"  Eigenvalues: {eigenvals_qr}")
 
-print("\nRunning Lanczos...")
-eigenvals_lanc, eigenvecs_lanc, n_iter_lanc, history_lanc = lanczos_iteration(
-    test_matrix, k, max_iter=100, tol=1e-10
-)
-print(f"  Converged in {n_iter_lanc} iterations")
-print(f"  Eigenvalues: {eigenvals_lanc}")
+# print("\nRunning Lanczos...")
+# eigenvals_lanc, eigenvecs_lanc, n_iter_lanc, history_lanc = lanczos_iteration(
+#     test_matrix, k, max_iter=mi, tol=1e-10
+# )
+# print(f"  Converged in {n_iter_lanc} iterations")
+# print(f"  Eigenvalues: {eigenvals_lanc}")
 
 print("\nRunning Implicitly Restarted Lanczos...")
 eigenvals_lanc_ir, eigenvecs_lanc_ir, n_iter_lanc_ir, history_lanc_ir = lanczos_practical_qr(
     test_matrix,
     k=k,
-    m=None,
-    max_qr_iter=50,
-    tol=1e-6,
+    m=(k+20),
+    max_qr_iter=mi,
+    tol=1e-10,
+    skip_trivial=True
 )
 print(f"  Converged in {n_iter_lanc_ir} outer iterations")
 print(f"  Eigenvalues: {eigenvals_lanc_ir}")

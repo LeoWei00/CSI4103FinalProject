@@ -162,6 +162,7 @@ def lanczos_practical_qr(
     max_lanczos=None,   # kept for symmetry with other solvers; not really used
     max_qr_iter=1000,
     tol=1e-10,
+    skip_trivial=False,
 ):
     """
     Practical QR path for symmetric A:
@@ -170,27 +171,31 @@ def lanczos_practical_qr(
         implicit QR on T            →  eigenpairs of T
         Ritz pairs                  →  approximate eigenpairs of A
 
-    This is your "QR Algorithm (practical interpretation)" solver.
+    If skip_trivial=True (e.g. Laplacian), we assume the very smallest
+    eigenvalue is trivial and return the next k eigenpairs.
 
     Parameters
     ----------
     A : (n, n) ndarray or sparse matrix
         Symmetric matrix (e.g., Laplacian).
     k : int
-        Number of smallest eigenpairs to return.
+        Number of eigenpairs to return (nontrivial ones if skip_trivial=True).
     m : int, optional
-        Lanczos subspace dimension (>= k). Default: k + 10 or n, whichever is smaller.
+        Lanczos subspace dimension (>= k [+1 if skip_trivial]).
+        Default: (k + (1 if skip_trivial else 0)) + 10, capped by n.
     max_lanczos : int, optional
         Included for API symmetry; currently unused (single Lanczos pass of size m).
     max_qr_iter : int
         Maximum QR iterations on T.
     tol : float
         Tolerance used inside QR iteration (off-diagonal norm).
+    skip_trivial : bool
+        If True, drop the very smallest eigenpair and return the next k.
 
     Returns
     -------
     eigenvalues : ndarray, shape (k,)
-        Smallest k Rayleigh–Ritz eigenvalues approximating those of A.
+        Smallest (or smallest nontrivial) Rayleigh–Ritz eigenvalues.
     eigenvectors : ndarray, shape (n, k)
         Corresponding Ritz vectors in the original space.
     n_iter : int
@@ -206,7 +211,16 @@ def lanczos_practical_qr(
 
     # Lanczos subspace size
     if m is None:
-        m = min(n, k + 10)
+        base = k + (1 if skip_trivial else 0)
+        m = min(n, base + 10)
+    else:
+        # basic safety: need enough room for trivial + k if skipping
+        needed = k + (1 if skip_trivial else 0)
+        if m < needed:
+            raise ValueError(
+                f"lanczos_practical_qr: m={m} too small for k={k} with "
+                f"skip_trivial={skip_trivial}; need at least m >= {needed}."
+            )
 
     # 1) Lanczos tridiagonalization: A ≈ V T V^T
     V, alpha, beta = lanczos_tridiagonal(A, m)
@@ -217,8 +231,7 @@ def lanczos_practical_qr(
         T, max_iter=max_qr_iter, tol=tol
     )
 
-    # Sort eigenpairs of T (we want smallest eigenvalues of A, which
-    # correspond to smallest eigenvalues of T for a good Lanczos run).
+    # Sort eigenpairs of T
     idx = np.argsort(evals_T)
     evals_T = evals_T[idx]
     evecs_T = evecs_T[:, idx]
@@ -226,12 +239,18 @@ def lanczos_practical_qr(
     # 3) Ritz vectors in original space: V * y_j
     ritz_vecs = V @ evecs_T    # shape (n, m)
 
-    # take the first k (smallest eigenvalues)
-    eigenvalues = evals_T[:k]
-    eigenvectors = ritz_vecs[:, :k]
+    # Select which eigenpairs to return
+    if skip_trivial:
+        # assume eigenvalues[0] is trivial (e.g. 0)
+        eigenvalues = evals_T[1 : k]
+        eigenvectors = ritz_vecs[:, 1 : k]
+    else:
+        eigenvalues = evals_T[:k]
+        eigenvectors = ritz_vecs[:, :k]
 
-    # optionally orthonormalize Ritz vectors (helps numerically)
+    # Orthonormalize Ritz vectors (helps numerically)
     eigenvectors, _ = qr(eigenvectors, mode="economic")
 
     return eigenvalues, eigenvectors, n_qr_iter, qr_history
+
 

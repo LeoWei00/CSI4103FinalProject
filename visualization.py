@@ -127,7 +127,12 @@ def plot_convergence(convergence_histories, algorithm_names, k=None, save_path=N
 
 
 def plot_segmentation(
-    image, labels, image_shape, title="Segmentation Result", save_path=None
+    image,
+    labels,
+    image_shape,
+    title="Segmentation Result",
+    save_path=None,
+    superpixel_labels=None,
 ):
     """
     Plot image segmentation result.
@@ -144,6 +149,9 @@ def plot_segmentation(
         Plot title
     save_path : str, optional
         Path to save figure
+    superpixel_labels : ndarray, optional
+        2D array mapping each pixel to a superpixel id. Required when labels are
+        defined on superpixels instead of pixels.
     """
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 
@@ -156,7 +164,16 @@ def plot_segmentation(
     axes[0].axis("off")
 
     # Segmentation
-    labels_reshaped = labels.reshape(image_shape[:2])
+    labels_arr = np.asarray(labels)
+    if superpixel_labels is not None:
+        max_superpixel = np.max(superpixel_labels)
+        if max_superpixel >= len(labels_arr):
+            raise ValueError(
+                "Superpixel label map references ids outside the provided labels."
+            )
+        labels_reshaped = labels_arr[superpixel_labels]
+    else:
+        labels_reshaped = labels_arr.reshape(image_shape[:2])
     axes[1].imshow(labels_reshaped, cmap="tab20")
     axes[1].set_title(title)
     axes[1].axis("off")

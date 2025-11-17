@@ -3,12 +3,12 @@ Graph Laplacian construction for image segmentation using k-nearest neighbors.
 """
 
 import numpy as np
-from scipy.spatial.distance import cdist
 from scipy.sparse import csr_matrix
 from sklearn.neighbors import NearestNeighbors
+from skimage import img_as_float, segmentation, color
 
 
-def image_to_feature_vectors(image):
+def image_to_feature_vectors(image, return_superpixel_labels=False):
     """
     Convert an image to feature vectors for graph construction.
 
@@ -20,32 +20,62 @@ def image_to_feature_vectors(image):
     Returns
     -------
     features : ndarray
-        Feature vectors of shape (n_pixels, n_features)
-        Features include spatial coordinates and pixel intensities
+        Feature vectors of shape (n_superpixels, n_features)
+    labels : ndarray, optional
+        SLIC superpixel labels per pixel if return_superpixel_labels is True
     """
-    if len(image.shape) == 2:
-        # Grayscale image
-        height, width = image.shape
-        channels = 1
-        image = image.reshape(height, width, 1)
+    img_f = img_as_float(image)
+
+    if img_f.ndim == 2:
+        channel_axis = None
+        feature_image = img_f[..., None]
+    elif img_f.ndim == 3:
+        channel_axis = -1
+        if img_f.shape[-1] == 3:
+            feature_image = color.rgb2lab(img_f)
+        else:
+            feature_image = img_f
     else:
-        height, width, channels = image.shape
+        raise ValueError("Unsupported image shape for feature extraction.")
 
-    # Create coordinate grid
-    y_coords, x_coords = np.meshgrid(np.arange(height), np.arange(width), indexing="ij")
-
-    # Normalize coordinates to [0, 1]
-    y_coords = y_coords.astype(float) / height
-    x_coords = x_coords.astype(float) / width
-
-    # Normalize pixel intensities to [0, 1]
-    image_normalized = image.astype(float) / 255.0
-
-    # Combine spatial and intensity features
-    features = np.column_stack(
-        [y_coords.flatten(), x_coords.flatten(), image_normalized.reshape(-1, channels)]
+    labels = segmentation.slic(
+        img_f,
+        n_segments=800,
+        compactness=10.0,
+        sigma=1.0,
+        channel_axis=channel_axis,
+        start_label=0,
     )
 
+    H, W = labels.shape
+    N = int(labels.max()) + 1
+
+    yy, xx = np.indices((H, W))
+    labels_flat = labels.ravel()
+    counts = np.bincount(labels_flat, minlength=N)
+
+    feature_pixels = feature_image.reshape(-1, feature_image.shape[-1])
+    sums = np.zeros((N, feature_pixels.shape[1]), dtype=np.float64)
+    for c in range(feature_pixels.shape[1]):
+        sums[:, c] = np.bincount(
+            labels_flat,
+            weights=feature_pixels[:, c],
+            minlength=N,
+        )
+    mean_features = sums / np.maximum(counts[:, None], 1)
+
+    cx = np.bincount(labels_flat, weights=xx.ravel(), minlength=N) / np.maximum(counts, 1)
+    cy = np.bincount(labels_flat, weights=yy.ravel(), minlength=N) / np.maximum(counts, 1)
+    centers_xy = np.stack([cx, cy], axis=1)
+
+    xy = centers_xy.astype(np.float64)
+    xy[:, 0] /= max(W, 1)
+    xy[:, 1] /= max(H, 1)
+
+    features = np.concatenate([mean_features, xy], axis=1)
+
+    if return_superpixel_labels:
+        return features, labels
     return features
 
 
@@ -147,7 +177,9 @@ def construct_laplacian(adjacency, normalized=True):
     return laplacian
 
 
-def image_to_laplacian(image, k=10, sigma=None, normalized=True):
+def image_to_laplacian(
+    image, k=10, sigma=None, normalized=True, return_superpixel_labels=False
+):
     """
     Convert an image directly to a graph Laplacian.
 
@@ -166,8 +198,17 @@ def image_to_laplacian(image, k=10, sigma=None, normalized=True):
     -------
     laplacian : csr_matrix
         Graph Laplacian matrix
+    labels : ndarray, optional
+        Superpixel labels per pixel if return_superpixel_labels is True
     """
-    features = image_to_feature_vectors(image)
+    if return_superpixel_labels:
+        features, slic_labels = image_to_feature_vectors(
+            image, return_superpixel_labels=True
+        )
+    else:
+        features = image_to_feature_vectors(image)
     adjacency = construct_knn_graph(features, k=k, sigma=sigma)
     laplacian = construct_laplacian(adjacency, normalized=normalized)
+    if return_superpixel_labels:
+        return laplacian, slic_labels
     return laplacian

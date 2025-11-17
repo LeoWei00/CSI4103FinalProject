@@ -193,8 +193,12 @@ def run_experiment(
     print("Constructing graph Laplacian...")
     print(f"  k-nearest neighbors: {k_neighbors}")
     print(f"  Normalized Laplacian: {normalized_laplacian}")
-    laplacian = image_to_laplacian(
-        image, k=k_neighbors, sigma=sigma, normalized=normalized_laplacian
+    laplacian, superpixel_labels = image_to_laplacian(
+        image,
+        k=k_neighbors,
+        sigma=sigma,
+        normalized=normalized_laplacian,
+        return_superpixel_labels=True,
     )
     print(f"  Laplacian shape: {laplacian.shape}")
     print()
@@ -277,7 +281,12 @@ def run_experiment(
                 )
             if visualize or save_results:
                 plot_segmentation(
-                    image, labels, image_shape, title=title, save_path=save_path
+                    image,
+                    labels,
+                    image_shape,
+                    title=title,
+                    save_path=save_path,
+                    superpixel_labels=superpixel_labels,
                 )
 
         # Comparison plots

@@ -3,13 +3,13 @@ Metrics and evaluation utilities for comparing algorithms.
 """
 
 import numpy as np
-from sklearn.metrics import adjusted_rand_score, silhouette_score
+from sklearn.metrics import adjusted_rand_score, silhouette_score, f1_score
 from sklearn.cluster import KMeans
 import time
 import psutil
 import os
 import tracemalloc
-
+from scipy.ndimage import binary_dilation
 
 def compute_eigenvalue_accuracy(eigenvalues_computed, eigenvalues_true, k=None):
     """
@@ -132,6 +132,29 @@ def spectral_clustering(eigenvectors, n_clusters, random_state=42):
 
     return labels
 
+def labels_to_pixel_map(sp, sp_cluster_labels):
+    H, W = sp.shape
+    assert sp_cluster_labels.ndim == 1
+    out = sp_cluster_labels[sp]
+    return out.astype(np.int32)
+
+def label_boundaries(label_img):
+    """Binary boundary map from pixel labels (4-neighborhood)."""
+    H, W = label_img.shape
+    B = np.zeros((H, W), dtype=bool)
+    B[:, 1:] |= (label_img[:, 1:] != label_img[:, :-1])
+    B[1:, :] |= (label_img[1:, :] != label_img[:-1, :])
+    return B
+
+def boundary_f1(pred_labels, gt_labels, tol=1):
+    Bp = label_boundaries(pred_labels)
+    Bg = label_boundaries(gt_labels)
+    if tol > 0:
+        Bg = binary_dilation(Bg, iterations=tol)
+        Bp = binary_dilation(Bp, iterations=tol)
+    y_pred = Bp.ravel().astype(np.uint8)
+    y_true = Bg.ravel().astype(np.uint8)
+    return f1_score(y_true, y_pred)
 
 def compute_segmentation_metrics(labels_pred, labels_true=None, image_shape=None):
     """

@@ -10,6 +10,7 @@ import argparse
 import sys
 import os
 from collections import defaultdict
+from skimage import io
 
 # Import our modules
 from graph_laplacian import image_to_laplacian, image_to_feature_vectors
@@ -23,6 +24,8 @@ from metrics import (
     spectral_clustering,
     compute_segmentation_metrics,
     measure_runtime,
+    labels_to_pixel_map,
+    boundary_f1,
 )
 from visualization import (
     plot_convergence,
@@ -30,7 +33,8 @@ from visualization import (
     plot_comparison_results,
     create_report,
     plot_metric_across_images_scatter,
-    create_aggregate_report
+    create_aggregate_report,
+    plot_f1score
 )
 
 
@@ -60,7 +64,76 @@ def load_image(image_input):
     else:
         raise ValueError("image_input must be a file path (str) or numpy array")
 
+def read_bsds300_seg(seg_path):
+    """
+    Parse BSDS300 .seg format (as in Berkeley segbench).
+    Returns: seg (H, W) int32 label image, with labels starting from 1.
+    """
 
+    width = height = None
+    quads = []  # (s, r, c1, c2) 0-based in file
+
+    with open(seg_path, 'r') as f:
+        # parse header
+        while True:
+            line = f.readline()
+            if line == '':
+                raise ValueError("Premature EOF before 'data'")
+            line = line.strip()
+            if line == 'data':
+                break
+            if line.startswith('width'):
+                width = int(line.split()[1])
+            elif line.startswith('height'):
+                height = int(line.split()[1])
+
+        if width is None or height is None:
+            raise ValueError("Missing width/height header in .seg")
+
+        # parse data: four integers per record
+        import re
+        data = f.read()
+        nums = list(map(int, re.findall(r'-?\d+', data)))
+        if len(nums) % 4 != 0:
+            raise ValueError("Data length is not multiple of 4 in .seg")
+
+        vals = np.array(nums, dtype=np.int64).reshape(-1, 4).T  # shape (4, N)
+        # convert 0-based -> 1-based to match MATLAB code (+1)
+        vals = vals + 1
+        s_arr, r_arr, c1_arr, c2_arr = vals
+
+        # MATLAB code uses seg = zeros(width,height); seg(c1:c2, r) = s; seg = seg';
+        # After transpose, resulting shape becomes (height, width)
+        seg = np.zeros((width, height), dtype=np.int32)
+        for s, r, c1, c2 in zip(s_arr, r_arr, c1_arr, c2_arr):
+            # clamp just in case
+            c1 = max(1, min(c1, width))
+            c2 = max(1, min(c2, width))
+            r  = max(1, min(r,  height))
+            seg[c1-1:c2, r-1] = s  # Python slice end is exclusive
+
+        seg = seg.T  # transpose like MATLAB
+
+        # sanity checks (mirror MATLAB)
+        if seg.min() < 1:
+            raise ValueError("Some pixel not assigned a segment (min<1).")
+        # ensure labels are 1..K without gaps
+        uniq = np.unique(seg)
+        if len(uniq) != uniq.max():
+            # not fatal, but keep consistent by remapping to 1..K
+            mapping = {v: i+1 for i, v in enumerate(uniq)}
+            seg = np.vectorize(mapping.get, otypes=[np.int32])(seg)
+
+        return seg
+
+def load_segmentation(seg_path):
+    ext = os.path.splitext(seg_path)[1].lower()
+
+    if ext == ".seg":
+        seg = read_bsds300_seg(seg_path)
+        return [seg.astype(np.int32)]
+    return []
+    
 def create_algorithm_wrappers(k, max_iter=1000, tol=1e-10):
     """
     Create algorithm wrapper functions for comparison.
@@ -189,6 +262,7 @@ def run_experiment(
     # Load image
     print("Loading image...")
     image = load_image(image_input)
+    gt_label_img = load_segmentation(image_input.replace(".jpg", ".seg"))[0]
     image_shape = image.shape[:2]
     print(f"Image shape: {image_shape}")
     print(f"Number of pixels: {image_shape[0] * image_shape[1]}")
@@ -253,6 +327,10 @@ def run_experiment(
         labels = spectral_clustering(result["eigenvectors"], k_clusters)
         segmentations[alg_name] = labels
 
+        px_labels = labels_to_pixel_map(superpixel_labels, labels)
+        if gt_label_img is not None:
+            result['boundary_f1'] = boundary_f1(px_labels, gt_label_img, tol=1)
+
         # Compute segmentation metrics
         seg_metrics = compute_segmentation_metrics(labels, image_shape=image_shape)
         result["segmentation_metrics"] = seg_metrics
@@ -301,6 +379,9 @@ def run_experiment(
                     save_path=save_path,
                     superpixel_labels=superpixel_labels,
                 )
+                
+        if visualize or save_results:
+            plot_f1score(results)
 
         # Comparison plots
         if save_results:

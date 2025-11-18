@@ -75,6 +75,45 @@ def plot_runtime(results):
     plt.show(block=False)
     plt.pause(0.001)
 
+def plot_f1score(results, save_path=None):
+    """
+    Plot boundary F1-scores across algorithms.
+
+    Parameters
+    ----------
+    results : dict
+        Output dictionary from compare_algorithms / run_experiment.
+    save_path : str, optional
+        If provided, save the plot to this path instead of showing it.
+    """
+    alg_names = []
+    f1_scores = []
+    for alg, info in results.items():
+        f1 = info.get("boundary_f1", None)
+        if f1 is not None:
+            alg_names.append(alg)
+            f1_scores.append(f1)
+
+    if not alg_names:
+        print("No boundary_f1 entries available to plot.")
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    set_window_title(fig, "Boundary F1-score Comparison")
+    ax.bar(alg_names, f1_scores, color="tab:green")
+    ax.set_ylabel("Boundary F1-score")
+    ax.set_ylim(0, 1)
+    ax.set_title("Boundary F1-score per Algorithm")
+    ax.set_xticklabels(alg_names, rotation=30, ha="right")
+    ax.grid(True, axis="y", alpha=0.3)
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+    else:
+        plt.show(block=False)
+        plt.pause(0.001)
+
 def plot_convergence(convergence_histories, algorithm_names, k=None, save_path=None):
     """
     Plot convergence history for multiple algorithms.
@@ -391,6 +430,8 @@ def create_report(results, image_shape=None, save_path=None):
         report_lines.append(f"  Peak Python Memory: {result['peak_python_memory']} bytes")
 
         report_lines.append(f"  Orthogonalization loss: {result['orthogonalization_loss']}")
+
+        report_lines.append(f"  F1 Score: {result['boundary_f1']}")
 
         # 🔹 Segmentation metrics (if available)
         seg_metrics = result.get("segmentation_metrics", None)

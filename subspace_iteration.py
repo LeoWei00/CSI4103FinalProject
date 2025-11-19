@@ -413,45 +413,40 @@ def run_experiment(
 
 def run_experiments_on_images(
     image_inputs,
-    k_clusters=3,
+    k_clusters_list,
     k_neighbors=10,
     sigma=None,
     normalized_laplacian=True,
     max_iter=1000,
     tol=1e-10,
-    visualize=False,        # now controls aggregate plots
-    save_results=False,     # save aggregate plots to disk
+    visualize=True,
+    save_results=False,
     base_output_dir="results_batch",
+    n_segments=800
 ):
     """
-    Run the spectral clustering experiment on multiple images and collect results.
-    Uses run_experiment_core, so no per-image plots/reports are generated.
+    Run experiments on multiple images, where each image uses a *different*
+    value of k_clusters taken from k_clusters_list.
 
-    Parameters
-    ----------
-    image_inputs : list
-        List of image file paths or numpy arrays.
-    k_clusters, k_neighbors, sigma, normalized_laplacian, max_iter, tol : as before
-    visualize : bool
-        If True, show aggregate plots (across all images).
-    save_results : bool
-        If True, save aggregate plots into base_output_dir.
-    base_output_dir : str
-        Directory to hold aggregate results (and optional per-image dirs later).
-
-    Returns
-    -------
-    all_results : dict
-        image_id -> per-image results dict (same structure as run_experiment_core).
-    aggregates : dict
-        Aggregated metrics across images, organized by algorithm name.
+    If k_clusters_list has fewer entries than images, the last k value is reused.
     """
+
     os.makedirs(base_output_dir, exist_ok=True)
 
-    all_results = {}  # image_id -> results dict
+    all_results = {}
+
+    num_images = len(image_inputs)
+    num_k = len(k_clusters_list)
 
     for idx, img_input in enumerate(image_inputs):
-        # Build a readable ID for this image
+
+        # choose the correct k for this image
+        if idx < num_k:
+            k_clusters = k_clusters_list[idx]
+        else:
+            k_clusters = k_clusters_list[-1]   # reuse last value
+
+        # readable name
         if isinstance(img_input, str):
             img_name = os.path.basename(img_input)
             img_id = os.path.splitext(img_name)[0]
@@ -459,10 +454,11 @@ def run_experiments_on_images(
             img_id = f"image_{idx}"
 
         print("\n" + "=" * 80)
-        print(f"Running batch core experiment for image: {img_id}")
+        print(f"Running batch experiment for image: {img_id}")
+        print(f" → using k_clusters = {k_clusters}")
         print("=" * 80)
 
-        results, image_shape = run_experiment(
+        results = run_experiment(
             img_input,
             k_clusters=k_clusters,
             k_neighbors=k_neighbors,
@@ -470,14 +466,16 @@ def run_experiments_on_images(
             normalized_laplacian=normalized_laplacian,
             max_iter=max_iter,
             tol=tol,
-            verbose=True,
-            visualize=False,
-            save_results=False
+            visualize=visualize,
+            save_results=save_results,
+            n_segments=n_segments
         )
 
         all_results[img_id] = results
 
-    # ---- Aggregate metrics across images ----
+    # -------------------------------------------
+    # Aggregate metrics (unchanged)
+    # -------------------------------------------
     aggregates = {}
     if all_results:
         first_img_id = next(iter(all_results.keys()))
@@ -490,7 +488,6 @@ def run_experiments_on_images(
                 alg_res = res[alg_name]
                 seg_metrics = alg_res.get("segmentation_metrics", {})
 
-                # runtime / iterations if present
                 runtime = alg_res.get("runtime")
                 if runtime is not None:
                     metric_values["runtime"].append(runtime)
@@ -499,7 +496,6 @@ def run_experiments_on_images(
                 if n_iter is not None:
                     metric_values["n_iterations"].append(n_iter)
 
-                # segmentation metrics
                 for m_name, m_val in seg_metrics.items():
                     if np.isscalar(m_val):
                         metric_values[m_name].append(m_val)
@@ -512,30 +508,32 @@ def run_experiments_on_images(
                     "mean": float(vals_arr.mean()),
                     "std": float(vals_arr.std()),
                 }
-    
-    if (visualize or save_results) and aggregates:
-        if save_results:
-            report_file = os.path.join(base_output_dir, "aggregate_report.txt")
-            create_aggregate_report(
-                aggregates,
-                num_images=len(image_inputs),
-                save_path=report_file
-            )
-        if visualize:
-            print("\nGenerating aggregate plots across images...")
-            key_metrics = ["runtime", "n_iterations", "f1", "ari"]
-            for metric in key_metrics:
-                if any(metric in aggregates[alg] for alg in aggregates):
-                    scatter_path = (
-                        os.path.join(base_output_dir, f"{metric}_per_image.png")
-                        if save_results
-                        else None
-                    )
-                    plot_metric_across_images_scatter(
-                        aggregates, metric, save_path=scatter_path
-                    )
+
+    # aggregate visualizations (unchanged)
+    # if (visualize or save_results) and aggregates:
+    #     if save_results:
+    #         report_file = os.path.join(base_output_dir, "aggregate_report.txt")
+    #         create_aggregate_report(
+    #             aggregates,
+    #             num_images=len(image_inputs),
+    #             save_path=report_file
+    #         )
+
+    #     if visualize:
+    #         print("\nGenerating aggregate plots across images...")
+    #         key_metrics = ["runtime", "n_iterations", "f1", "ari"]
+    #         for metric in key_metrics:
+    #             if any(metric in aggregates[alg] for alg in aggregates):
+    #                 scatter_path = (
+    #                     os.path.join(base_output_dir, f"{metric}_per_image.png")
+    #                     if save_results else None
+    #                 )
+    #                 plot_metric_across_images_scatter(
+    #                     aggregates, metric, save_path=scatter_path
+    #                 )
 
     return all_results, aggregates
+
 
 def run_matrix_experiment(
     matrix,

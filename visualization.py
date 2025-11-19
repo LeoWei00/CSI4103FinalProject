@@ -431,7 +431,9 @@ def create_report(results, image_shape=None, save_path=None):
 
         report_lines.append(f"  Orthogonalization loss: {result['orthogonalization_loss']}")
 
-        report_lines.append(f"  F1 Score: {result['boundary_f1']}")
+        if 'boundary_f1' in result:
+            report_lines.append(f"  F1 Score: {result['boundary_f1']}")
+
 
         # 🔹 Segmentation metrics (if available)
         seg_metrics = result.get("segmentation_metrics", None)

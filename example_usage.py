@@ -25,12 +25,14 @@ image[24:32, 24:32] = 50  # Dark square
 
 results = run_experiment(
     image,
-    k_clusters=3,
+    k_clusters=6,
     k_neighbors=10,
-    max_iter=100,
+    max_iter=500,
     tol=1e-8,
     visualize=False,  # Set to True to see plots
     save_results=False,
+    as_sparse=True,  # Use dense for small images
+    true_img=False  # No ground truth available
 )
 
 for alg_name, result in results.items():
@@ -112,7 +114,7 @@ print(f"  Eigenvalues: {eigenvals_qr}")
 print("\nRunning Implicitly Restarted Lanczos...")
 eigenvals_lanc_ir, eigenvecs_lanc_ir, n_iter_lanc_ir, history_lanc_ir = lanczos_practical_qr(
     test_matrix,
-    k=k,
+    k=k+1,
     m=(k+20),
     max_qr_iter=mi,
     tol=1e-10,

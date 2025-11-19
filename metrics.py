@@ -239,7 +239,7 @@ def compute_orthogonalization_loss(eigenvectors):
 
 
 def compare_algorithms(
-    laplacian, k, algorithms, reference_eigenvals=None, reference_eigenvecs=None
+    laplacian, k, algorithms
 ):
     """
     Compare multiple eigenvalue algorithms.
@@ -253,10 +253,6 @@ def compare_algorithms(
     algorithms : dict
         Dictionary mapping algorithm names to functions
         Each function should take (laplacian, k) and return (eigenvals, eigenvecs, n_iter, history)
-    reference_eigenvals : ndarray, optional
-        Reference eigenvalues for accuracy comparison
-    reference_eigenvecs : ndarray, optional
-        Reference eigenvectors for accuracy comparison
 
     Returns
     -------
@@ -296,22 +292,6 @@ def compare_algorithms(
         if max_iter_budget is not None:
             result["max_iter_budget"] = max_iter_budget
             result["converged"] = n_iter < max_iter_budget
-
-        # Compute accuracy if reference available
-        if reference_eigenvals is not None:
-            max_err, mean_err, rel_err = compute_eigenvalue_accuracy(
-                eigenvals, reference_eigenvals, k=k
-            )
-            result["eigenvalue_max_error"] = max_err
-            result["eigenvalue_mean_error"] = mean_err
-            result["eigenvalue_relative_error"] = rel_err
-
-        if reference_eigenvecs is not None:
-            max_angle, mean_corr = compute_eigenvector_accuracy(
-                eigenvecs, reference_eigenvecs, k=k
-            )
-            result["eigenvector_max_angle"] = max_angle
-            result["eigenvector_mean_correlation"] = mean_corr
 
         results[name] = result
 

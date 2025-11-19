@@ -134,7 +134,7 @@ def load_segmentation(seg_path):
         return [seg.astype(np.int32)]
     return []
     
-def create_algorithm_wrappers(k, max_iter=1000, tol=1e-10):
+def create_algorithm_wrappers(n, k, max_iter=1000, tol=1e-10):
     """
     Create algorithm wrapper functions for comparison.
 
@@ -152,6 +152,17 @@ def create_algorithm_wrappers(k, max_iter=1000, tol=1e-10):
     algorithms : dict
         Dictionary of algorithm functions
     """
+    if n//2 <= k:
+        if(n < 100):
+            pqr_m = k+20
+        else:
+            pqr_m = k+10
+    else:
+        if(n < 100):
+            pqr_m = k+n//2
+        else:
+            pqr_m = n//2
+    
     # print(k)
     def subspace_standard_wrapper(laplacian):
         # print(k)
@@ -166,16 +177,6 @@ def create_algorithm_wrappers(k, max_iter=1000, tol=1e-10):
         eigenvals, eigenvecs, n_iter, history = block_subspace_iteration(
             laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
         )
-        return eigenvals, eigenvecs, n_iter, history
-
-    def qr_wrapper(laplacian):
-        inner_k = k
-        # QR iteration doesn't return history, so we create a simple one
-        eigenvals, eigenvecs, n_iter = qr_iteration_partial(
-            laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
-        )
-        # Create dummy history (QR doesn't track intermediate values)
-        history = [eigenvals] * n_iter
         return eigenvals, eigenvecs, n_iter, history
 
     # def lanczos_wrapper(laplacian, k=k):
@@ -196,16 +197,26 @@ def create_algorithm_wrappers(k, max_iter=1000, tol=1e-10):
     def lanczos_practical_qr_wrapper(laplacian):
         inner_k = k
         eigenvals, eigenvecs, n_iter, history = lanczos_practical_qr(
-            laplacian, inner_k, m=k+20, max_qr_iter=1000, tol=1e-10, skip_trivial=True
+            laplacian, inner_k, m=pqr_m, max_qr_iter=max_iter, tol=1e-10, skip_trivial=True
         )
+        return eigenvals, eigenvecs, n_iter, history
+    
+    def qr_wrapper(laplacian):
+        inner_k = k
+        # QR iteration doesn't return history, so we create a simple one
+        eigenvals, eigenvecs, n_iter = qr_iteration_partial(
+            laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
+        )
+        # Create dummy history (QR doesn't track intermediate values)
+        history = [eigenvals] * n_iter
         return eigenvals, eigenvecs, n_iter, history
 
     algorithms = {
         "Subspace Iteration (Standard)": subspace_standard_wrapper,
         "Subspace Iteration (Block)": subspace_block_wrapper,
-        "QR Iteration": qr_wrapper,
         #"Lanczos": lanczos_wrapper,
-        "Lanczos (Implicit QR)": lanczos_practical_qr_wrapper
+        "Lanczos + QR": lanczos_practical_qr_wrapper,
+        "QR Iteration": qr_wrapper
     }
 
     return algorithms
@@ -217,6 +228,11 @@ def run_experiment(
     k_neighbors=10,
     sigma=None,
     normalized_laplacian=True,
+    return_superpixel_labels=True,
+    use_superpixels=True,
+    as_sparse=True,
+    true_img = True,
+    n_segments=800,
     max_iter=1000,
     tol=1e-10,
     visualize=True,
@@ -262,7 +278,10 @@ def run_experiment(
     # Load image
     print("Loading image...")
     image = load_image(image_input)
-    gt_label_img = load_segmentation(image_input.replace(".jpg", ".seg"))[0]
+    if true_img:
+        gt_label_img = load_segmentation(image_input.replace(".jpg", ".seg"))[0]
+    else:
+        gt_label_img = None
     image_shape = image.shape[:2]
     print(f"Image shape: {image_shape}")
     print(f"Number of pixels: {image_shape[0] * image_shape[1]}")
@@ -277,47 +296,39 @@ def run_experiment(
         k=k_neighbors,
         sigma=sigma,
         normalized=normalized_laplacian,
-        return_superpixel_labels=True,
+        use_superpixels=use_superpixels,
+        return_superpixel_labels=return_superpixel_labels,
+        n_segments=n_segments
     )
     print(f"  Laplacian shape: {laplacian.shape}")
     print()
 
     # Convert to dense if needed for some algorithms
-    if hasattr(laplacian, "toarray"):
-        laplacian_dense = laplacian.toarray()
+    if not as_sparse:
+        print(f"  Sparse storage: {as_sparse}")
+        if hasattr(laplacian, "toarray"):
+            laplacian_dense = laplacian.toarray()
+        else:
+            print("Error: laplacian is not sparse but has no toarray() method.")
+            laplacian_dense = laplacian
+        
+        algorithms = create_algorithm_wrappers(laplacian_dense.shape[0], k_clusters+1, max_iter=max_iter, tol=tol)
+        print("Running algorithm comparison...")
+        results = compare_algorithms(
+            laplacian_dense,
+            k_clusters,
+            algorithms
+        )
     else:
-        laplacian_dense = laplacian
-
-    # Get reference solution using scipy (for accuracy comparison)
-    print("Computing reference solution (scipy.linalg.eigh)...")
-    from scipy.linalg import eigh
-
-    # Compute 1 extra so we can skip λ₀
-    eigenvals_ref, eigenvecs_ref = eigh(laplacian_dense)
-
-    # Sort
-    idx = np.argsort(eigenvals_ref)
-    eigenvals_ref = eigenvals_ref[idx]
-    eigenvecs_ref = eigenvecs_ref[:, idx]
-
-    # Skip the trivial eigenvalue (0)
-    eigenvals_ref = eigenvals_ref[1 : k_clusters + 1]
-    eigenvecs_ref = eigenvecs_ref[:, 1 : k_clusters + 1]
-    print ("Reference eigenvalues:", eigenvals_ref)
-    print()
+        algorithms = create_algorithm_wrappers(laplacian.shape[0], k_clusters+1, max_iter=max_iter, tol=tol)
+        results = compare_algorithms(
+            laplacian,
+            k_clusters,
+            algorithms
+        )
 
     # Create algorithm wrappers
-    algorithms = create_algorithm_wrappers(k_clusters+1, max_iter=max_iter, tol=tol)
-
-    # Run comparison
-    print("Running algorithm comparison...")
-    results = compare_algorithms(
-        laplacian_dense,
-        k_clusters,
-        algorithms,
-        reference_eigenvals=eigenvals_ref,
-        reference_eigenvecs=eigenvecs_ref,
-    )
+    
     print()
 
     # Perform spectral clustering with each method

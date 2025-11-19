@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 *.jpg
 *.seg
+lanczos_sro.py

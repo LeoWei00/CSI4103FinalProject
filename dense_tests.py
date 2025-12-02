@@ -45,19 +45,34 @@ def ring(h=64, w=64, r_inner=10, r_outer=20):
 
 img_ring = ring(64, 64, 10, 20)
 
+images = [img1, img2, img_diagonal, img_ring]
+names = ["Half-split", "Quadrants", "Diagonal Split", "Ring Pattern"]
+
+plt.figure(figsize=(14, 6))
+
+for idx, (img, name) in enumerate(zip(images, names), start=1):
+    H, W = img.shape
+    plt.subplot(1, 4, idx)
+    plt.imshow(img, cmap="gray", vmin=0, vmax=255)
+    plt.title(f"{name}\n{H}×{W}")
+    plt.axis("off")
+
+plt.tight_layout()
+plt.show()
+
 L_1, labels = image_to_laplacian(
     img1,
     k=10,
     sigma=None,
     normalized=True,
     return_superpixel_labels=True,
-    n_segments=20,       
+    n_segments=20, # 20, 40, 60, 80, 90       
     use_superpixels=True
 )
 
 if hasattr(L_1, "toarray"):
     L_1 = L_1.toarray()
-
+# print(L_1.shape[0])
 L_2, labels = image_to_laplacian(
     img2,
     k=10,
@@ -77,7 +92,7 @@ L_3, labels = image_to_laplacian(
     sigma=None,
     normalized=True,
     return_superpixel_labels=True,
-    n_segments=90,       
+    n_segments=60,       
     use_superpixels=True
 )
 
@@ -167,7 +182,7 @@ results_diagonal = run_experiment(
     save_results=False,
     as_sparse=False,  # Use dense for small images
     true_img=False,  # No ground truth available
-    n_segments=90
+    n_segments=60
 )
 
 results_rings = run_experiment(
@@ -229,45 +244,78 @@ def extract_metric(all_results, metric):
 
     return solvers, values
 
-def plot_metric_with_eig(all_results, eigen_counts, metric, title):
+def plot_metric_with_eig(all_results, eigen_counts, metric, title, log_scale=False):
     solvers, values = extract_metric(all_results, metric)
 
     exp_names = list(values.keys())
     num_exps = len(exp_names)
     x = np.arange(num_exps)
-    width = 0.15
 
     plt.figure(figsize=(14, 6))
 
-    # plot bars
+    # ----- BAR WIDTH -----
+    width = 0.12  # adjust for spacing
+
+    # ----- CREATE GROUPED BARS -----
     for i, solver in enumerate(solvers):
         solver_vals = [values[exp][i] for exp in exp_names]
-        plt.bar(x + i * width, solver_vals, width=width, label=solver)
 
-    # add eigenvalue count annotation above each experiment group
+        # Each solver gets an offset: center +/- (i * width)
+        plt.bar(
+            x + (i - len(solvers)/2) * width + width/2,
+            solver_vals,
+            width=width,
+            label=solver
+        )
+
+    # ----- ADD EIGENVALUE COUNT ANNOTATIONS -----
     for idx, exp in enumerate(exp_names):
         eig_count = eigen_counts[exp]
-        xpos = x[idx] + width * (len(solvers) / 2)
-        ypos = max([values[exp][i] for i in range(len(solvers))])
-        plt.text(xpos, ypos * 1.02, f"eig = {eig_count}",
-                 ha='center', va='bottom', fontsize=10, color='black')
+        ypos = max(values[exp])  # highest bar for this experiment
 
-    plt.xticks(x + width * (len(solvers) / 2), exp_names)
+        plt.text(
+            x[idx],
+            ypos * 1.02,
+            f"eig = {eig_count}",
+            ha='center',
+            va='bottom',
+            fontsize=10,
+            color='black'
+        )
+
+    # ----- LABEL FIXING -----
+    if metric == "runtime":
+        metric = "Runtime (s)"
+    elif metric == "peak_python_memory":
+        metric = "Peak Python Memory (bytes)"
+
+    plt.xticks(x, exp_names)
     plt.ylabel(metric)
     plt.title(title)
     plt.legend()
     plt.grid(axis="y", linestyle="--", alpha=0.4)
+
+    if log_scale:
+        plt.yscale("log")
+
     plt.tight_layout()
     plt.show()
 
-plot_metric_with_eig(all_results, num_eigenvalues,
-                     "runtime", "Runtime Comparison (with eigenvalue counts)")
+
+
+plot_metric_with_eig(
+    all_results,
+    num_eigenvalues,
+    "runtime",
+    "Runtime Comparison (with eigenvalue counts)",
+    log_scale=True
+)
 
 plot_metric_with_eig(all_results, num_eigenvalues,
                      "peak_memory", "Peak Memory (with eigenvalue counts)")
 
 plot_metric_with_eig(all_results, num_eigenvalues,
-                     "peak_python_memory", "Peak Python Memory (with eigenvalue counts)")
+                     "peak_python_memory", "Peak Python Memory (with eigenvalue counts)", log_scale=True)
 
 plot_metric_with_eig(all_results, num_eigenvalues,
                      "orthogonalization_loss", "Orthogonalization Loss (with eigenvalue counts)")

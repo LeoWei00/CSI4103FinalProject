@@ -30,6 +30,8 @@ def qr_iteration(A, max_iter=1000, tol=1e-10, shift=True):
         Corresponding eigenvectors (columns)
     n_iter : int
         Number of iterations performed
+    history : list of ndarray
+        History of (sorted) diagonal entries per iteration, for convergence plots.
     """
     if issparse(A):
         A = A.toarray()
@@ -42,6 +44,9 @@ def qr_iteration(A, max_iter=1000, tol=1e-10, shift=True):
 
     # Track eigenvectors
     Q_total = Q_hess.copy()
+
+    # History of diagonal (eigenvalue estimates)
+    history = []
 
     for iteration in range(max_iter):
         # Check for convergence (check if lower triangular part is small)
@@ -86,6 +91,10 @@ def qr_iteration(A, max_iter=1000, tol=1e-10, shift=True):
         # Update eigenvectors
         Q_total = Q_total @ Q
 
+        # Record current diagonal (eigenvalue estimates) for history
+        diag_vals = np.diag(H)
+        history.append(np.sort(diag_vals.copy()))
+
     # Extract eigenvalues from diagonal
     eigenvalues = np.diag(H)
 
@@ -94,7 +103,7 @@ def qr_iteration(A, max_iter=1000, tol=1e-10, shift=True):
     eigenvalues = eigenvalues[idx]
     eigenvectors = Q_total[:, idx]
 
-    return eigenvalues, eigenvectors, iteration + 1
+    return eigenvalues, eigenvectors, iteration + 1, history
 
 
 def qr_iteration_partial(A, k, max_iter=1000, tol=1e-10, skip_trivial=False):
@@ -125,9 +134,11 @@ def qr_iteration_partial(A, k, max_iter=1000, tol=1e-10, skip_trivial=False):
         Corresponding eigenvectors (columns).
     n_iter : int
         Number of iterations performed by qr_iteration.
+    history : list
+        History from qr_iteration (diagonals per iteration).
     """
-    # Full QR iteration on A
-    eigenvalues_all, eigenvectors_all, n_iter = qr_iteration(
+    # Full QR iteration on A (now returns history)
+    eigenvalues_all, eigenvectors_all, n_iter, history = qr_iteration(
         A, max_iter=max_iter, tol=tol
     )
 
@@ -154,5 +165,4 @@ def qr_iteration_partial(A, k, max_iter=1000, tol=1e-10, skip_trivial=False):
         eigenvalues = eigenvalues_all[:k]
         eigenvectors = eigenvectors_all[:, :k]
 
-    return eigenvalues, eigenvectors, n_iter
-
+    return eigenvalues, eigenvectors, n_iter, history

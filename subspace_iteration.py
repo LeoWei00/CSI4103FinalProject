@@ -172,12 +172,12 @@ def create_algorithm_wrappers(n, k, max_iter=1000, tol=1e-10):
         )
         return eigenvals, eigenvecs, n_iter, history
 
-    def subspace_block_wrapper(laplacian):
-        inner_k = k
-        eigenvals, eigenvecs, n_iter, history = block_subspace_iteration(
-            laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
-        )
-        return eigenvals, eigenvecs, n_iter, history
+    # def subspace_block_wrapper(laplacian):
+    #     inner_k = k
+    #     eigenvals, eigenvecs, n_iter, history = block_subspace_iteration(
+    #         laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
+    #     )
+    #     return eigenvals, eigenvecs, n_iter, history
 
     # def lanczos_wrapper(laplacian, k=k):
     #     eigenvals, eigenvecs, n_iter, history = lanczos_iteration(
@@ -204,16 +204,15 @@ def create_algorithm_wrappers(n, k, max_iter=1000, tol=1e-10):
     def qr_wrapper(laplacian):
         inner_k = k
         # QR iteration doesn't return history, so we create a simple one
-        eigenvals, eigenvecs, n_iter = qr_iteration_partial(
+        eigenvals, eigenvecs, n_iter, history = qr_iteration_partial(
             laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
         )
         # Create dummy history (QR doesn't track intermediate values)
-        history = [eigenvals] * n_iter
         return eigenvals, eigenvecs, n_iter, history
 
     algorithms = {
         "Subspace Iteration (Standard)": subspace_standard_wrapper,
-        "Subspace Iteration (Block)": subspace_block_wrapper,
+        # "Subspace Iteration (Block)": subspace_block_wrapper,
         #"Lanczos": lanczos_wrapper,
         "Lanczos + QR": lanczos_practical_qr_wrapper,
         "QR Iteration": qr_wrapper

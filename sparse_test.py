@@ -3,8 +3,44 @@ from subspace_iteration import run_experiments_on_images
 
 k_arr = [5,5,5,5,5]
 
+from PIL import Image
+import matplotlib.pyplot as plt
+import os
+
+# Read image paths from the text file
 with open("images.txt", "r") as f:
     image_inputs = [line.strip() for line in f.readlines() if line.strip()]
+
+# # Load all images first
+# images = []
+# titles = []
+
+# for path in image_inputs:
+#     img = Image.open(path)
+#     w, h = img.size
+#     images.append((img, w, h))
+#     titles.append(f"{os.path.basename(path)}\n{w} × {h}")
+#     print(f"{path}: {w} x {h}")
+
+# # Create one big figure
+# n = len(images)
+# fig, axes = plt.subplots(1, n, figsize=(4*n, 4))
+
+# if n == 1:
+#     axes = [axes]  # ensure iterable
+
+# for ax, (img, w, h), title in zip(axes, images, titles):
+#     if img.mode in ("L", "1"):
+#         ax.imshow(img, cmap="gray")
+#     else:
+#         ax.imshow(img)
+#     ax.axis("off")
+#     ax.set_title(title)
+
+# plt.tight_layout()
+# plt.show()
+
+
 
 # Image1 Train 151-175 (24063): 5-6 segs 6
 # Image2 Test 26-50 (260058): 5-10 segs 7
@@ -22,7 +58,7 @@ all_results, agg = run_experiments_on_images(
             visualize=True,        # now controls aggregate plots
             save_results=False,     # save aggregate plots to disk
             base_output_dir="results_batch",
-            n_segments=1000
+            n_segments=800
         )
 
 import re
@@ -89,6 +125,7 @@ def plot_metric_across_images(
     plt.figure(figsize=(10, 6))
 
     for alg in algorithms:
+        
 
         if metric == "runtime" and skip_qr_for_runtime and "QR Iteration" in alg:
             continue
@@ -108,6 +145,11 @@ def plot_metric_across_images(
                 y_values.append(hist[-1])
 
         plt.plot(range(len(image_ids)), y_values, marker="o", label=alg)
+    
+    if metric == "runtime":
+        metric = "Runtime (s)"
+    elif metric == "peak_python_memory":
+        metric = "Peak Python Memory (bytes)"
 
     plt.xticks(range(len(image_ids)), image_ids, rotation=45)
     plt.ylabel(metric)
@@ -132,5 +174,5 @@ metrics_to_plot = [
 ]
 
 for m in metrics_to_plot:
-    plot_metric_across_images(all_results, metric=m)
+    plot_metric_across_images(all_results, metric=m, skip_qr_for_runtime=False)
 

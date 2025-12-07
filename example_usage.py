@@ -90,13 +90,6 @@ eigenvals_si, eigenvecs_si, n_iter_si, history_si = standard_subspace_iteration(
 print(f"  Converged in {n_iter_si} iterations")
 print(f"  Eigenvalues: {eigenvals_si}")
 
-print("\nRunning Block Subspace Iteration...")
-eigenvals_bsi, eigenvecs_bsi, n_iter_bsi, history_bsi = block_subspace_iteration(
-    test_matrix, k+1, max_iter=mi, tol=1e-10, skip_trivial=True
-)
-print(f"  Converged in {n_iter_bsi} iterations")
-print(f"  Eigenvalues: {eigenvals_bsi}")
-
 print("\nRunning QR Iteration...")
 eigenvals_qr, eigenvecs_qr, n_iter_qr = qr_iteration_partial(
     test_matrix, k+1, max_iter=mi, tol=1e-10, skip_trivial=True
@@ -104,14 +97,7 @@ eigenvals_qr, eigenvecs_qr, n_iter_qr = qr_iteration_partial(
 print(f"  Converged in {n_iter_qr} iterations")
 print(f"  Eigenvalues: {eigenvals_qr}")
 
-# print("\nRunning Lanczos...")
-# eigenvals_lanc, eigenvecs_lanc, n_iter_lanc, history_lanc = lanczos_iteration(
-#     test_matrix, k, max_iter=mi, tol=1e-10
-# )
-# print(f"  Converged in {n_iter_lanc} iterations")
-# print(f"  Eigenvalues: {eigenvals_lanc}")
-
-print("\nRunning Implicitly Restarted Lanczos...")
+print("\nRunning QR + Lanczos...")
 eigenvals_lanc_ir, eigenvecs_lanc_ir, n_iter_lanc_ir, history_lanc_ir = lanczos_practical_qr(
     test_matrix,
     k=k+1,

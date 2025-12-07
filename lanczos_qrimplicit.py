@@ -9,7 +9,7 @@ from scipy.sparse import issparse
 from scipy.linalg import qr
 
 # ---------------------------------------------------------
-# 1. Lanczos tridiagonalization (no restarting)
+# 1. Lanczos tridiagonalization
 # ---------------------------------------------------------
 
 def lanczos_tridiagonal(A, m, v0=None, tol=1e-14):
@@ -94,14 +94,14 @@ def build_tridiagonal(alpha, beta):
 
 
 # ---------------------------------------------------------
-# 2. Implicit QR iteration on small symmetric tridiagonal T
+# 2. QR iteration on small symmetric tridiagonal T
 # ---------------------------------------------------------
 
 def qr_iteration_tridiagonal(T, max_iter=1000, tol=1e-12):
     """
-    Implicitly shifted QR on a small symmetric matrix T.
+    QR on a small symmetric matrix T.
 
-    This is a *practical* implementation, not super optimized,
+    This is a practical implementation, not super optimized,
     but fine for the small m (~k+10) coming from Lanczos.
 
     Parameters
@@ -136,7 +136,7 @@ def qr_iteration_tridiagonal(T, max_iter=1000, tol=1e-12):
 
         Q_total = Q_total @ Q
 
-        # track (say) first 5 eigenvalues estimate, just for convergence plots
+        # track first 5 eigenvalues estimate
         diag_vals = np.diag(A_k)
         history.append(np.sort(diag_vals.copy()))
 
@@ -152,7 +152,7 @@ def qr_iteration_tridiagonal(T, max_iter=1000, tol=1e-12):
 
 
 # ---------------------------------------------------------
-# 3. Practical QR path: Lanczos → T → implicit QR(T) → Ritz pairs
+# 3. Practical QR path: Lanczos → T → implicit QR(T) 
 # ---------------------------------------------------------
 
 def lanczos_practical_qr(
@@ -226,7 +226,7 @@ def lanczos_practical_qr(
     V, alpha, beta = lanczos_tridiagonal(A, m)
     T = build_tridiagonal(alpha, beta)
 
-    # 2) Implicit QR on the small T
+    # 2) QR on the small T
     evals_T, evecs_T, n_qr_iter, qr_history = qr_iteration_tridiagonal(
         T, max_iter=max_qr_iter, tol=tol
     )
@@ -236,10 +236,9 @@ def lanczos_practical_qr(
     evals_T = evals_T[idx]
     evecs_T = evecs_T[:, idx]
 
-    # 3) Ritz vectors in original space: V * y_j
     ritz_vecs = V @ evecs_T    # shape (n, m)
 
-    # Select which eigenpairs to return
+    # 3) Select which eigenpairs to return
     if skip_trivial:
         # assume eigenvalues[0] is trivial (e.g. 0)
         eigenvalues = evals_T[1 : k]
@@ -248,7 +247,6 @@ def lanczos_practical_qr(
         eigenvalues = evals_T[:k]
         eigenvectors = ritz_vecs[:, :k]
 
-    # Orthonormalize Ritz vectors (helps numerically)
     eigenvectors, _ = qr(eigenvectors, mode="economic")
 
     return eigenvalues, eigenvectors, n_qr_iter, qr_history

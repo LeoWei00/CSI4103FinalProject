@@ -171,28 +171,6 @@ def create_algorithm_wrappers(n, k, max_iter=1000, tol=1e-10):
             laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
         )
         return eigenvals, eigenvecs, n_iter, history
-
-    # def subspace_block_wrapper(laplacian):
-    #     inner_k = k
-    #     eigenvals, eigenvecs, n_iter, history = block_subspace_iteration(
-    #         laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
-    #     )
-    #     return eigenvals, eigenvecs, n_iter, history
-
-    # def lanczos_wrapper(laplacian, k=k):
-    #     eigenvals, eigenvecs, n_iter, history = lanczos_iteration(
-    #         laplacian, k, max_iter=max_iter, tol=tol
-    #     )
-    #     return eigenvals, eigenvecs, n_iter, history
-    
-    # def lanczos_ir_wrapper(laplacian, k):
-    #     """
-    #     Wrapper for implicitly restarted Lanczos.
-    #     """
-    #     vals, vecs = eigsh(laplacian, k=k, which="SM")
-    #     # no iteration history, so fake it
-    #     history = [vals.copy()]
-    #     return vals, vecs, 1, history
     
     def lanczos_practical_qr_wrapper(laplacian):
         inner_k = k
@@ -203,17 +181,13 @@ def create_algorithm_wrappers(n, k, max_iter=1000, tol=1e-10):
     
     def qr_wrapper(laplacian):
         inner_k = k
-        # QR iteration doesn't return history, so we create a simple one
         eigenvals, eigenvecs, n_iter, history = qr_iteration_partial(
             laplacian, inner_k, max_iter=max_iter, tol=tol, skip_trivial=True
         )
-        # Create dummy history (QR doesn't track intermediate values)
         return eigenvals, eigenvecs, n_iter, history
 
     algorithms = {
         "Subspace Iteration (Standard)": subspace_standard_wrapper,
-        # "Subspace Iteration (Block)": subspace_block_wrapper,
-        #"Lanczos": lanczos_wrapper,
         "Lanczos + QR": lanczos_practical_qr_wrapper,
         "QR Iteration": qr_wrapper
     }
@@ -473,7 +447,7 @@ def run_experiments_on_images(
         all_results[img_id] = results
 
     # -------------------------------------------
-    # Aggregate metrics (unchanged)
+    # Aggregate metrics
     # -------------------------------------------
     aggregates = {}
     if all_results:
@@ -507,29 +481,6 @@ def run_experiments_on_images(
                     "mean": float(vals_arr.mean()),
                     "std": float(vals_arr.std()),
                 }
-
-    # aggregate visualizations (unchanged)
-    # if (visualize or save_results) and aggregates:
-    #     if save_results:
-    #         report_file = os.path.join(base_output_dir, "aggregate_report.txt")
-    #         create_aggregate_report(
-    #             aggregates,
-    #             num_images=len(image_inputs),
-    #             save_path=report_file
-    #         )
-
-    #     if visualize:
-    #         print("\nGenerating aggregate plots across images...")
-    #         key_metrics = ["runtime", "n_iterations", "f1", "ari"]
-    #         for metric in key_metrics:
-    #             if any(metric in aggregates[alg] for alg in aggregates):
-    #                 scatter_path = (
-    #                     os.path.join(base_output_dir, f"{metric}_per_image.png")
-    #                     if save_results else None
-    #                 )
-    #                 plot_metric_across_images_scatter(
-    #                     aggregates, metric, save_path=scatter_path
-    #                 )
 
     return all_results, aggregates
 

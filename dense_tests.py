@@ -253,10 +253,8 @@ def plot_metric_with_eig(all_results, eigen_counts, metric, title, log_scale=Fal
 
     plt.figure(figsize=(14, 6))
 
-    # ----- BAR WIDTH -----
     width = 0.12  # adjust for spacing
 
-    # ----- CREATE GROUPED BARS -----
     for i, solver in enumerate(solvers):
         solver_vals = [values[exp][i] for exp in exp_names]
 
@@ -268,7 +266,7 @@ def plot_metric_with_eig(all_results, eigen_counts, metric, title, log_scale=Fal
             label=solver
         )
 
-    # ----- ADD EIGENVALUE COUNT ANNOTATIONS -----
+    # Eigenvalue count
     for idx, exp in enumerate(exp_names):
         eig_count = eigen_counts[exp]
         ypos = max(values[exp])  # highest bar for this experiment
@@ -283,7 +281,6 @@ def plot_metric_with_eig(all_results, eigen_counts, metric, title, log_scale=Fal
             color='black'
         )
 
-    # ----- LABEL FIXING -----
     if metric == "runtime":
         metric = "Runtime (s)"
     elif metric == "peak_python_memory":

@@ -40,8 +40,6 @@ with open("images.txt", "r") as f:
 # plt.tight_layout()
 # plt.show()
 
-
-
 # Image1 Train 151-175 (24063): 5-6 segs 6
 # Image2 Test 26-50 (260058): 5-10 segs 7
 # Image3: Test 76-100 (66053) 5-11 segs 8

@@ -16,7 +16,6 @@ from skimage import io
 from graph_laplacian import image_to_laplacian, image_to_feature_vectors
 from subspace_iteration_alg import standard_subspace_iteration, block_subspace_iteration
 from qr_iteration import qr_iteration_partial
-from lanczos import lanczos_iteration
 from lanczos_qrimplicit import lanczos_practical_qr
 from scipy.sparse.linalg import eigsh
 from metrics import (

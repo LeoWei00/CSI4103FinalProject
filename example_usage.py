@@ -71,7 +71,6 @@ print("-" * 80)
 from graph_laplacian import image_to_laplacian
 from subspace_iteration_alg import standard_subspace_iteration, block_subspace_iteration
 from qr_iteration import qr_iteration_partial
-from lanczos import lanczos_iteration
 from lanczos_qrimplicit import lanczos_practical_qr
 
 # Create a small test matrix
